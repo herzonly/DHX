@@ -35,7 +35,7 @@ let herza = async(m, { conn, text, usedPrefix, command }) => {
     
     await m.reply('🎨 Processing image...');
     
-    let response = await axios.get(`https://maylinejix-dashme.hf.space/api/AI/nanobanana2?img1=${encodeURIComponent(mediaUrl)}&prompt=${encodeURIComponent(text)}&key=${dhx}`);
+    let response = await axios.get(`https://api.dashx.biz.id/api/AI/nanobanana2?img1=${encodeURIComponent(mediaUrl)}&prompt=${encodeURIComponent(text)}&key=${dhx}`);
     
     if (response.data && response.data.data && response.data.data.result_url) {
       await conn.sendFile(m.chat, response.data.data.result_url, 'image.jpg', '✅ Image Edited Successfully', m);
