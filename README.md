@@ -97,8 +97,8 @@ npm run dev
 
 ```
 DHX/
-├── commands/          # Bot command handlers
-├── handlers/          # Event handlers
+├── plugins/          # Bot command handlers
+├── handler.js          # Event handlers
 ├── lib/              # Utility functions
 ├── config.js         # Configuration file
 ├── index.js          # Main entry point
