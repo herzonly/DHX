@@ -107,7 +107,7 @@ DHX/
 
 ## 📝 Adding New Commands
 
-Create a new file in the `commands/` directory:
+Create a new file in the `plugins/` directory:
 
 ```javascript
 let handler = async (m, { bot }) => {
