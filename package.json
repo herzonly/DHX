@@ -1,0 +1,28 @@
+{
+  "name": "nodejs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^22.13.11",
+    "axios": "^1.13.2",
+    "chalk": "^4.1.2",
+    "file-type": "^16.5.4",
+    "lodash": "^4.17.21",
+    "human-readable": "*",
+    "notmebotz-tools": "*",
+    "node-fetch": "*",
+    "yt-search": "*",
+    "lowdb": "^2.1.0",
+    "moment-timezone": "^0.6.0",
+    "telegraf": "*",
+    "steno": "^0.4.4",
+    "syntax-error": "^1.4.0"
+  }
+}
