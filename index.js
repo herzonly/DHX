@@ -1,5 +1,3 @@
-// HERXA PROPERTY
-
 require("./config");
 
 const { Telegraf } = require('telegraf');
@@ -17,6 +15,12 @@ try {
   dbLibrary = require("./lib/lowdb");
 }
 const { Low, JSONFile } = dbLibrary;
+
+function reloadModule(modulePath) {
+  const fullPath = require.resolve(modulePath);
+  delete require.cache[fullPath];
+  return require(modulePath);
+}
 
 (async () => {
   const bot = new Telegraf(global.TOKEN);
@@ -52,7 +56,7 @@ const { Low, JSONFile } = dbLibrary;
 
   await loadDatabase();
 
-  console.log(chalk.green('🤖 Bot Telegram Started!'));
+  console.log(chalk.green('Bot Telegram Started!'));
 
   let pluginsDir = path.join(__dirname, "plugins");
   let isJavaScriptFile = (fileName) => /\.js$/.test(fileName);
@@ -60,7 +64,10 @@ const { Low, JSONFile } = dbLibrary;
   global.commands = {};
   global.bot = bot;
 
-  for (let pluginFile of fs.readdirSync(pluginsDir).filter(isJavaScriptFile)) {
+  const pluginFiles = fs.readdirSync(pluginsDir).filter(isJavaScriptFile);
+  const pluginList = [];
+
+  for (let pluginFile of pluginFiles) {
     try {
       const plugin = require(path.join(pluginsDir, pluginFile));
       global.plugins[pluginFile] = plugin;
@@ -70,16 +77,29 @@ const { Low, JSONFile } = dbLibrary;
         commands.forEach(cmd => {
           const cmdStr = cmd instanceof RegExp ? cmd.toString() : cmd;
           global.commands[cmdStr] = pluginFile;
-          console.log(chalk.blue(`📝 Registered: ${cmdStr}`));
         });
       }
+      pluginList.push(`'_${pluginFile}'`);
     } catch (error) {
-      console.error(chalk.red(`❌ Error loading ${pluginFile}:`), error);
+      console.error(chalk.red(`Error loading ${pluginFile}:`), error);
       delete global.plugins[pluginFile];
     }
   }
 
-  console.log(chalk.yellow(`✅ Loaded ${Object.keys(global.plugins).length} plugins`));
+  console.log(chalk.green('['));
+  const displayLimit = 50;
+  const filesToShow = pluginList.slice(0, displayLimit);
+  const remainingFiles = pluginList.length - displayLimit;
+
+  filesToShow.forEach(plugin => {
+    console.log(chalk.green(`  ${plugin},`));
+  });
+
+  if (remainingFiles > 0) {
+    console.log(chalk.green(`  ... ${remainingFiles} more items`));
+  }
+
+  console.log(chalk.green(']'));
 
   global.reload = (event, filePath) => {
     if (/\.js$/.test(filePath)) {
@@ -87,18 +107,18 @@ const { Low, JSONFile } = dbLibrary;
       if (fullFilePath in require.cache) {
         delete require.cache[fullFilePath];
         if (fs.existsSync(fullFilePath)) {
-          console.log(chalk.cyan(`♻️ Reloading: ${filePath}`));
+          console.log(chalk.cyan(`Reloading: ${filePath}`));
         } else {
-          console.log(chalk.red(`🗑️ Deleted: ${filePath}`));
+          console.log(chalk.red(`Deleted: ${filePath}`));
           return delete global.plugins[filePath];
         }
       } else {
-        console.log(chalk.green(`🔁 Loading: ${filePath}`));
+        console.log(chalk.green(`Loading: ${filePath}`));
       }
 
       let errorCheck = syntaxError(fs.readFileSync(fullFilePath), filePath);
       if (errorCheck) {
-        console.error(chalk.red(`❌ Syntax error: ${errorCheck}`));
+        console.error(chalk.red(`Syntax error: ${errorCheck}`));
       } else {
         try {
           const plugin = require(fullFilePath);
@@ -112,12 +132,23 @@ const { Low, JSONFile } = dbLibrary;
             });
           }
         } catch (error) {
-          console.error(chalk.red(`❌ Error: ${error}`));
+          console.error(chalk.red(`Error: ${error}`));
         } finally {
           global.plugins = Object.fromEntries(Object.entries(global.plugins).sort(([a], [b]) => a.localeCompare(b)));
         }
       }
     }
+  };
+
+  global.reloadHandler = function() {
+    console.log(chalk.cyan('Reloading handler...'));
+    
+    const handlerModule = reloadModule('./handler');
+    
+    bot.handler = handlerModule.handler.bind(bot);
+    
+    console.log(chalk.green('Handler reloaded successfully'));
+    return true;
   };
 
   Object.freeze(global.reload);
@@ -132,43 +163,65 @@ const { Low, JSONFile } = dbLibrary;
   }
 
   bot.use(async (ctx, next) => {
-    setImmediate(async () => {
-      try {
-        if (global.db.data == null) await loadDatabase();
-        await require('./handler').handler(bot, ctx);
-      } catch (error) {
-        console.error(chalk.red('Handler Error:'), error);
-      }
-    });
+    try {
+      if (global.db.data == null) await loadDatabase();
+      await require('./handler').handler(bot, ctx);
+    } catch (error) {
+      console.error(chalk.red('Handler Error:'), error);
+    }
     return next();
   });
-
-  bot.on('callback_query', async (ctx) => {
-    setImmediate(async () => {
+    
+    bot.on('callback_query', async (ctx) => {
+    try {
+      const data = ctx.callbackQuery.data;
+      const userId = ctx.callbackQuery.from.id;
+      const chatId = ctx.callbackQuery.message.chat.id;
+      const messageId = ctx.callbackQuery.message.message_id;
+      
+      await ctx.answerCbQuery();
+      
+      const fakeMessage = {
+        message_id: messageId,
+        from: ctx.callbackQuery.from,
+        chat: ctx.callbackQuery.message.chat,
+        text: data,
+        date: Math.floor(Date.now() / 1000)
+      };
+      
+      const fakeCtx = {
+        message: fakeMessage,
+        update: {
+          message: fakeMessage
+        },
+        botInfo: ctx.botInfo,
+        telegram: ctx.telegram,
+        chat: ctx.callbackQuery.message.chat,
+        from: ctx.callbackQuery.from,
+        reply: async (text, options = {}) => {
+          return await ctx.telegram.sendMessage(chatId, text, {
+            parse_mode: 'Markdown',
+            ...options
+          });
+        },
+        replyWithPhoto: ctx.replyWithPhoto.bind(ctx),
+        replyWithVideo: ctx.replyWithVideo.bind(ctx),
+        replyWithAudio: ctx.replyWithAudio.bind(ctx),
+        replyWithDocument: ctx.replyWithDocument.bind(ctx),
+        replyWithSticker: ctx.replyWithSticker.bind(ctx),
+        deleteMessage: ctx.deleteMessage.bind(ctx)
+      };
+      
+      await require('./handler').handler(bot, fakeCtx);
+      
+    } catch (error) {
+      console.error('Error handling callback query:', error);
       try {
-        const callbackData = ctx.callbackQuery.data;
-        
-        if (callbackData.startsWith('menu_')) {
-          const menuPlugin = Object.values(global.plugins).find(p => p.handleCallback);
-          if (menuPlugin && menuPlugin.handleCallback) {
-            await menuPlugin.handleCallback(bot, ctx.callbackQuery);
-          }
-        }
-        
-        for (let pluginFile in global.plugins) {
-          let plugin = global.plugins[pluginFile];
-          if (plugin.handleCallback && !callbackData.startsWith('menu_')) {
-            try {
-              await plugin.handleCallback(bot, ctx.callbackQuery);
-            } catch (e) {
-              console.error(chalk.red(`Error in ${pluginFile} callback:`), e);
-            }
-          }
-        }
-      } catch (error) {
-        console.error(chalk.red('Callback Query Error:'), error);
+        await ctx.answerCbQuery('Terjadi kesalahan!');
+      } catch (e) {
+        console.error('Error answering callback query:', e);
       }
-    });
+    }
   });
 
   bot.catch((err, ctx) => {
@@ -187,9 +240,13 @@ const { Low, JSONFile } = dbLibrary;
     dropPendingUpdates: true
   });
 
-  console.log(chalk.green('✅ Bot is running...'));
+  console.log(chalk.green('Bot is running...'));
 
-  process.once('SIGINT', () => bot.stop('SIGINT'));
-  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  process.once('SIGINT', () => {
+    bot.stop('SIGINT');
+  });
+  process.once('SIGTERM', () => {
+    bot.stop('SIGTERM');
+  });
 
 })();
