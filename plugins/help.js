@@ -94,6 +94,20 @@ function truncateText(text, maxLength = 1000) {
   return text.substring(0, maxLength - 50) + '\n\n... (Terlalu panjang, gunakan /menu <kategori>)';
 }
 
+function findCategoryKey(input) {
+  if (!input) return null;
+  
+  const inputLower = input.toLowerCase();
+  
+  const exactMatch = arrayMenu.find(key => key.toLowerCase() === inputLower);
+  if (exactMatch) return exactMatch;
+  
+  const tagMatch = Object.keys(allTags).find(key => allTags[key].toLowerCase() === inputLower);
+  if (tagMatch) return tagMatch;
+  
+  return null;
+}
+
 async function showMenu(bot, chatId, category = null, user, replyToMessageId = null) {
   let userName = user.first_name || 'User';
   
@@ -134,7 +148,7 @@ async function showMenu(bot, chatId, category = null, user, replyToMessageId = n
     let menuText = '';
 
     if (category) {
-      const categoryKey = Object.keys(allTags).find(key => allTags[key] === category);
+      const categoryKey = findCategoryKey(category);
       
       if (categoryKey && arrayMenu.includes(categoryKey)) {
         menuText += defaultMenu.before;
@@ -237,18 +251,17 @@ let handler = async (m, { bot, chatId, args }) => {
 
     let category = args[0] ? args[0] : null;
     
-    if (category && !Object.values(allTags).includes(category) && !arrayMenu.includes(category)) {
-      let errorText = 'Kategori tidak ditemukan!\n\n';
-      errorText += 'Kategori yang tersedia:\n';
-      arrayMenu.slice(0, 10).forEach(tag => {
-        errorText += `• ${allTags[tag]}\n`;
-      });
-      errorText += '\nGunakan /menu untuk melihat semua kategori';
+    if (category) {
+      const categoryKey = findCategoryKey(category);
       
-      await bot.telegram.sendMessage(chatId, errorText, {
-        reply_to_message_id: m.message_id
-      });
-      return;
+      if (!categoryKey) {
+        await bot.telegram.sendMessage(chatId, 'Menu with this tags is not available', {
+          reply_to_message_id: m.message_id
+        });
+        return;
+      }
+      
+      category = allTags[categoryKey];
     }
 
     await showMenu(bot, chatId, category, m.from, m.message_id);
@@ -262,9 +275,12 @@ let handler = async (m, { bot, chatId, args }) => {
 handler.before = async (m, { bot, chatId, user }) => {
   const text = m.text;
   
-  if (Object.values(allTags).includes(text)) {
-    await showMenu(bot, chatId, text, m.from, m.message_id);
-    return true;
+  if (text) {
+    const categoryKey = findCategoryKey(text);
+    if (categoryKey) {
+      await showMenu(bot, chatId, allTags[categoryKey], m.from, m.message_id);
+      return true;
+    }
   }
   
   return false;
