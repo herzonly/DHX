@@ -599,6 +599,25 @@ module.exports = {
   }
 };
 
+bot.on('callback_query', async (ctx) => {
+  for (let name in global.plugins) {
+    let plugin = global.plugins[name];
+    if (!plugin) continue;
+    if (plugin.disabled) continue;
+    
+    if (typeof plugin.callback === 'function') {
+      try {
+        const result = await plugin.callback(ctx, bot);
+        if (result === true) {
+          return;
+        }
+      } catch (e) {
+        console.error(`Error in ${name}.callback:`, e);
+      }
+    }
+  }
+});
+
 global.dfail = (type, m, ctx, extra) => {
   let messages = {
     owner: 'This command only available for Developer!',
