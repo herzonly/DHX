@@ -70,6 +70,10 @@ let cacheExpiry = 0;
 const CACHE_DURATION = 60000;
 const MAX_MESSAGE_LENGTH = 1000;
 
+if (!global.userMenuMessages) {
+  global.userMenuMessages = {};
+}
+
 function createReplyKeyboard() {
   let buttons = [];
   let row = [];
@@ -137,7 +141,7 @@ function splitMenuText(text, maxLength = MAX_MESSAGE_LENGTH) {
   return pages.length > 0 ? pages : [text];
 }
 
-function createPaginationButtons(currentPage, totalPages, category) {
+function createPaginationButtons(currentPage, totalPages) {
   const buttons = [];
   
   if (totalPages > 1) {
@@ -146,19 +150,19 @@ function createPaginationButtons(currentPage, totalPages, category) {
     if (currentPage > 0) {
       row.push({
         text: '◀️ Previous',
-        callback_data: `menu_page:${category}:${currentPage - 1}`
+        callback_data: `mnupg:${currentPage - 1}`
       });
     }
     
     row.push({
-      text: `${currentPage + 1}/${totalPages}`,
-      callback_data: `menu_page:${category}:${currentPage}`
+      text: `📄 ${currentPage + 1}/${totalPages}`,
+      callback_data: `mnuinfo:page`
     });
     
     if (currentPage < totalPages - 1) {
       row.push({
         text: 'Next ▶️',
-        callback_data: `menu_page:${category}:${currentPage + 1}`
+        callback_data: `mnupg:${currentPage + 1}`
       });
     }
     
@@ -184,7 +188,7 @@ function findCategoryKey(input) {
   return null;
 }
 
-async function showMenu(bot, chatId, category = null, user, replyToMessageId = null, page = 0) {
+function generateMenuText(category, user, page = 0) {
   let userName = user.first_name || 'User';
   
   let d = new Date(new Date() + 3600000);
@@ -269,29 +273,87 @@ async function showMenu(bot, chatId, category = null, user, replyToMessageId = n
     (_, name) => '' + replace[name]);
 
   const pages = splitMenuText(text, MAX_MESSAGE_LENGTH);
-  const totalPages = pages.length;
   
-  if (page >= totalPages) page = totalPages - 1;
-  if (page < 0) page = 0;
-  
-  const currentPageText = pages[page];
-  const keyboard = createReplyKeyboard();
-  const inlineKeyboard = totalPages > 1 ? createPaginationButtons(page, totalPages, category || 'main') : null;
-  
-  const localVideoPath = path.join(__dirname, '../assets/menu.mp4');
-  
+  return {
+    text: pages[page] || pages[0],
+    pages: pages,
+    totalPages: pages.length
+  };
+}
+
+async function showMenu(bot, chatId, category = null, user, replyToMessageId = null, page = 0, messageId = null, isEdit = false) {
   try {
-    if (category && totalPages > 1) {
-      await bot.telegram.sendMessage(chatId, currentPageText, {
-        reply_markup: inlineKeyboard,
-        reply_to_message_id: replyToMessageId,
-        parse_mode: "Markdown"
-      });
+    const menuData = generateMenuText(category, user, page);
+    const currentPageText = menuData.text;
+    const totalPages = menuData.totalPages;
+    
+    const keyboard = createReplyKeyboard();
+    const inlineKeyboard = totalPages > 1 ? createPaginationButtons(page, totalPages) : null;
+    
+    if (!global.userMenuMessages[user.id]) {
+      global.userMenuMessages[user.id] = {};
+    }
+    
+    global.userMenuMessages[user.id].category = category;
+    global.userMenuMessages[user.id].pages = menuData.pages;
+    
+    const localVideoPath = path.join(__dirname, '../assets/menu.mp4');
+    
+    if (isEdit && messageId) {
+      try {
+        await bot.telegram.editMessageCaption(
+          chatId,
+          messageId,
+          null,
+          currentPageText,
+          {
+            reply_markup: inlineKeyboard,
+            parse_mode: "Markdown"
+          }
+        );
+      } catch (editError) {
+        if (editError.message && editError.message.includes('message is not modified')) {
+          return;
+        }
+        
+        if (global.userMenuMessages[user.id].messageId) {
+          try {
+            await bot.telegram.deleteMessage(chatId, global.userMenuMessages[user.id].messageId);
+          } catch (e) {}
+        }
+        
+        let sent;
+        if (global.menuVideoFileId) {
+          sent = await bot.telegram.sendVideo(chatId, global.menuVideoFileId, {
+            caption: currentPageText,
+            reply_markup: inlineKeyboard || keyboard,
+            parse_mode: "Markdown"
+          });
+        } else {
+          sent = await bot.telegram.sendMessage(chatId, currentPageText, {
+            reply_markup: inlineKeyboard || keyboard,
+            parse_mode: "Markdown"
+          });
+        }
+        
+        if (sent) {
+          global.userMenuMessages[user.id].messageId = sent.message_id;
+        }
+      }
     } else {
+      const userId = user.id;
+      
+      if (global.userMenuMessages[userId]?.messageId) {
+        try {
+          await bot.telegram.deleteMessage(chatId, global.userMenuMessages[userId].messageId);
+        } catch (e) {}
+      }
+      
+      let sent;
       if (!global.menuVideoFileId && fs.existsSync(localVideoPath)) {
-        const sent = await bot.telegram.sendVideo(chatId, { source: localVideoPath }, {
+        sent = await bot.telegram.sendVideo(chatId, { source: localVideoPath }, {
           caption: currentPageText,
-          reply_markup: keyboard,
+          reply_markup: inlineKeyboard || keyboard,
           reply_to_message_id: replyToMessageId,
           parse_mode: "Markdown",
           supports_streaming: true
@@ -300,31 +362,26 @@ async function showMenu(bot, chatId, category = null, user, replyToMessageId = n
           global.menuVideoFileId = sent.video.file_id;
         }
       } else if (global.menuVideoFileId) {
-        await bot.telegram.sendVideo(chatId, global.menuVideoFileId, {
+        sent = await bot.telegram.sendVideo(chatId, global.menuVideoFileId, {
           caption: currentPageText,
-          reply_markup: keyboard,
+          reply_markup: inlineKeyboard || keyboard,
           reply_to_message_id: replyToMessageId,
           parse_mode: "Markdown"
         });
       } else {
-        await bot.telegram.sendMessage(chatId, currentPageText, {
-          reply_markup: keyboard,
+        sent = await bot.telegram.sendMessage(chatId, currentPageText, {
+          reply_markup: inlineKeyboard || keyboard,
           reply_to_message_id: replyToMessageId,
           parse_mode: "Markdown"
         });
       }
+      
+      if (sent) {
+        global.userMenuMessages[userId].messageId = sent.message_id;
+      }
     }
   } catch (e) {
-    console.error('Error sending menu:', e);
-    try {
-      await bot.telegram.sendMessage(chatId, currentPageText, {
-        reply_markup: inlineKeyboard || keyboard,
-        reply_to_message_id: replyToMessageId,
-        parse_mode: "Markdown"
-      });
-    } catch (fallbackError) {
-      await bot.telegram.sendMessage(chatId, 'Error menampilkan menu. Silakan coba lagi.');
-    }
+    await bot.telegram.sendMessage(chatId, 'Error menampilkan menu. Silakan coba lagi.');
   }
 }
 
@@ -352,24 +409,29 @@ let handler = async (m, { bot, chatId, args }) => {
         return;
       }
       
-      category = allTags[categoryKey];
+      category = categoryKey;
     }
 
     await showMenu(bot, chatId, category, m.from, m.message_id, 0);
 
   } catch (e) {
-    console.error(e);
     await bot.telegram.sendMessage(chatId, 'Maaf, menu sedang error: ' + e.message);
   }
 };
 
-handler.before = async (m, { bot, chatId, user }) => {
+handler.before = async (m, { bot, chatId, user, ctx }) => {
   const text = m.text;
   
   if (text) {
     const categoryKey = findCategoryKey(text);
     if (categoryKey) {
-      await showMenu(bot, chatId, allTags[categoryKey], m.from, m.message_id, 0);
+      const userId = m.from.id;
+      
+      if (global.userMenuMessages[userId]?.messageId) {
+        await showMenu(bot, chatId, categoryKey, m.from, null, 0, global.userMenuMessages[userId].messageId, true);
+      } else {
+        await showMenu(bot, chatId, categoryKey, m.from, m.message_id, 0);
+      }
       return true;
     }
   }
@@ -377,21 +439,43 @@ handler.before = async (m, { bot, chatId, user }) => {
   return false;
 };
 
-bot.action(/menu_page:(.+):(\d+)/, async (ctx) => {
+handler.callback = async (ctx, bot) => {
   try {
-    const category = ctx.match[1];
-    const page = parseInt(ctx.match[2]);
+    const data = ctx.callbackQuery?.data;
     
-    await ctx.answerCbQuery();
+    if (!data) return false;
     
-    await ctx.deleteMessage();
+    if (data.startsWith('mnupg:')) {
+      const page = parseInt(data.replace('mnupg:', ''));
+      const user = ctx.from;
+      const chatId = ctx.chat.id;
+      const messageId = ctx.callbackQuery.message.message_id;
+      
+      const userMenuData = global.userMenuMessages[user.id];
+      
+      if (userMenuData) {
+        await ctx.answerCbQuery();
+        await showMenu(bot, chatId, userMenuData.category, user, null, page, messageId, true);
+        return true;
+      }
+      
+      await ctx.answerCbQuery('Session expired, silakan request menu lagi');
+      return true;
+    }
     
-    await showMenu(bot, ctx.chat.id, category, ctx.from, null, page);
+    if (data.startsWith('mnuinfo:')) {
+      await ctx.answerCbQuery('📄 Menu Pagination');
+      return true;
+    }
+    
+    return false;
   } catch (e) {
-    console.error('Error handling pagination:', e);
-    await ctx.answerCbQuery('Error loading page');
+    try {
+      await ctx.answerCbQuery('Error loading page');
+    } catch (err) {}
+    return false;
   }
-});
+};
 
 function clockString(ms) {
   if (isNaN(ms)) return '--';
