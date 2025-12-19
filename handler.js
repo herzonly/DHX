@@ -566,25 +566,24 @@ module.exports = {
             stats[cmdName].lastSuccess = Date.now();
           }
         }).catch((e) => {
-        }).catch((e) => {
           console.error(e);
           
           if (typeof e === 'string') {
             ctx.reply(e, { parse_mode: 'Markdown' }).catch(err => console.error('Reply error:', err));
           } else if (e instanceof Error) {
-            ctx.reply(e.message || '❌ Terjadi kesalahan saat menjalankan perintah', { parse_mode: 'Markdown' }).catch(err => console.error('Reply error:', err));
+            ctx.reply(e.message || 'Terjadi kesalahan saat menjalankan perintah', { parse_mode: 'Markdown' }).catch(err => console.error('Reply error:', err));
             
             let errorText = util.format(e);
             let errorStack = e.stack || errorText;
             
-            let errorReport = `❌ *ERROR REPORT*\n\n`;
-            errorReport += `📦 *Plugin:* ${name}\n`;
-            errorReport += `👤 *User:* ${m.pushName || m.from.first_name} (${userId})\n`;
-            errorReport += `💬 *Chat:* ${chatId}\n`;
-            errorReport += `🔧 *Command:* ${usedPrefix}${command} ${args.join(' ')}\n`;
-            errorReport += `⏰ *Time:* ${moment().tz('Asia/Jakarta').format('DD/MM/YY HH:mm:ss')}\n\n`;
-            errorReport += `📝 *Error Message:*\n\`\`\`${e.message}\`\`\`\n\n`;
-            errorReport += `📋 *Stack Trace:*\n\`\`\`${errorStack.substring(0, 500)}\`\`\``;
+            let errorReport = `ERROR REPORT\n\n`;
+            errorReport += `Plugin: ${name}\n`;
+            errorReport += `User: ${m.pushName || m.from.first_name} (${userId})\n`;
+            errorReport += `Chat: ${chatId}\n`;
+            errorReport += `Command: ${usedPrefix}${command} ${args.join(' ')}\n`;
+            errorReport += `Time: ${moment().tz('Asia/Jakarta').format('DD/MM/YY HH:mm:ss')}\n\n`;
+            errorReport += `Error Message:\n${e.message}\n\n`;
+            errorReport += `Stack Trace:\n${errorStack.substring(0, 500)}`;
 
             for (let ownerId of global.owner) {
               ctx.telegram.sendMessage(ownerId, errorReport, {
@@ -602,16 +601,16 @@ module.exports = {
 
 global.dfail = (type, m, ctx, extra) => {
   let messages = {
-    owner: '⚠️ This command only avaibale for Developer!',
-    mods: '⚠️ This command only available for bot mods',
-    premium: '⚠️ This command only for premium users!',
-    group: '⚠️ This command only availabe on group!',
-    private: '⚠️ This command only available on private chat!',
-    admin: '⚠️ This command only available for group admins!',
-    botAdmin: '⚠️ Bot must be admin to use this command!',
-    register: '⚠️ You are not registed yet!\nPlease register first, example:\n/register nama.umur',
-    limit: `⚠️ You're limit are insufficent, to use this command!`,
-    restrict: '⚠️ This feature isnt available right now!'
+    owner: 'This command only available for Developer!',
+    mods: 'This command only available for bot mods',
+    premium: 'This command only for premium users!',
+    group: 'This command only available on group!',
+    private: 'This command only available on private chat!',
+    admin: 'This command only available for group admins!',
+    botAdmin: 'Bot must be admin to use this command!',
+    register: 'You are not registered yet!\nPlease register first, example:\n/register nama.umur',
+    limit: `Your limit is insufficient to use this command!`,
+    restrict: 'This feature is not available right now!'
   }[type];
 
   if (messages) {
@@ -622,7 +621,7 @@ global.dfail = (type, m, ctx, extra) => {
 let file = require.resolve(__filename);
 fs.watchFile(file, () => {
   fs.unwatchFile(file);
-  console.log(chalk.redBright("🟢 Update 'handler.js'"));
+  console.log(chalk.redBright("Update 'handler.js'"));
   delete require.cache[file];
   if (global.reloadHandler) console.log(global.reloadHandler());
 });
