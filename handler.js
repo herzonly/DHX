@@ -3,6 +3,7 @@ const moment = require('moment-timezone');
 const { smsg } = require('./lib/simple');
 const fs = require('fs');
 const chalk = require('chalk');
+const print = require('./lib/print');
 
 const defaultUserData = {
   exp: 0,
@@ -191,7 +192,27 @@ const defaultUserData = {
 module.exports = {
   async handler(bot, ctx) {
 
-     if (ctx.callbackQuery) {
+    const originalReply = ctx.reply;
+    ctx.reply = async function(text, options) {
+      const result = await originalReply.call(this, text, options);
+      
+      if (typeof text === 'string') {
+        const fakeMessage = {
+          from: { id: bot.botInfo.id },
+          text: text
+        };
+        const fakeCtx = {
+          from: bot.botInfo,
+          chat: ctx.chat,
+          message: { text: text, date: Date.now() / 1000 }
+        };
+        await print(fakeMessage, fakeCtx, bot);
+      }
+      
+      return result;
+    };
+
+    if (ctx.callbackQuery) {
       for (let name in global.plugins) {
         let plugin = global.plugins[name];
         if (!plugin) continue;
@@ -209,7 +230,7 @@ module.exports = {
         }
       }
       return;
-  }
+    }
     
     if (ctx.message?.new_chat_members) {
       try {
@@ -645,4 +666,3 @@ fs.watchFile(file, () => {
   delete require.cache[file];
   if (global.reloadHandler) console.log(global.reloadHandler());
 });
-
