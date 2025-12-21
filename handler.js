@@ -3,7 +3,6 @@ const moment = require('moment-timezone');
 const { smsg } = require('./lib/simple');
 const fs = require('fs');
 const chalk = require('chalk');
-// TEST SCRIPT UPDATER
 
 const defaultUserData = {
   exp: 0,
@@ -646,3 +645,4 @@ fs.watchFile(file, () => {
   delete require.cache[file];
   if (global.reloadHandler) console.log(global.reloadHandler());
 });
+
