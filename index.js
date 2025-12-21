@@ -7,6 +7,7 @@ const chalk = require('chalk');
 const syntaxError = require('syntax-error');
 const lodash = require('lodash');
 const { initializeHelper } = require('./lib/simple');
+const print = require('./lib/print')
 
 let dbLibrary;
 try {
@@ -128,7 +129,7 @@ function reloadModule(modulePath) {
             const commands = Array.isArray(plugin.command) ? plugin.command : [plugin.command];
             commands.forEach(cmd => {
               const cmdStr = cmd instanceof RegExp ? cmd.toString() : cmd;
-              global.commands[cmdStr] = filePath;
+              global.commands[cmdStr] = pluginFile;
             });
           }
         } catch (error) {
@@ -165,14 +166,23 @@ function reloadModule(modulePath) {
   bot.use(async (ctx, next) => {
     try {
       if (global.db.data == null) await loadDatabase();
+      
       await require('./handler').handler(bot, ctx);
+      
+      if (ctx.message) {
+        const { smsg } = require('./lib/simple');
+        let m = await smsg(bot, ctx);
+        if (m) {
+          await print(m, ctx, bot);
+        }
+      }
     } catch (error) {
       console.error(chalk.red('Handler Error:'), error);
     }
     return next();
   });
     
-    bot.on('callback_query', async (ctx) => {
+  bot.on('callback_query', async (ctx) => {
     try {
       const data = ctx.callbackQuery.data;
       const userId = ctx.callbackQuery.from.id;
