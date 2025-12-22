@@ -1,6 +1,7 @@
 let handler = async (m, { bot, ctx, args, command, isOwner, chatId, userId, isAdmin }) => {
   let isEnable = /true|enable|(turn)?on|1/i.test(command);
   let chat = global.db.data.chats[chatId];
+  let user = global.db.data.users[userId];
   let type = (args[0] || '').toLowerCase();
 
   const isGroup = m.isGroup;
@@ -8,22 +9,36 @@ let handler = async (m, { bot, ctx, args, command, isOwner, chatId, userId, isAd
   switch (type) {
     case 'welcome':
       if (!isGroup) {
-        return ctx.reply('Perintah ini hanya dapat digunakan di grup!');
+        return ctx.reply('This command can only be used in groups!');
       }
       if (!isAdmin) {
-        return ctx.reply('Perintah ini hanya untuk Admin!');
+        return ctx.reply('This command is only for Admin!');
       }
       chat.welcome = isEnable;
       break;
 
     case 'antichannel':
       if (!isGroup) {
-        return ctx.reply('Perintah ini hanya dapat digunakan di grup!');
+        return ctx.reply('This command can only be used in groups!');
       }
       if (!isAdmin) {
-        return ctx.reply('Perintah ini hanya untuk Admin!');
+        return ctx.reply('This command is only for Admin!');
       }
       chat.antiChannel = isEnable;
+      break;
+
+    case 'autodl':
+      if (isGroup) {
+        if (!isAdmin) {
+          return ctx.reply('This command is only for Admin!');
+        }
+        chat.autoDL = isEnable;
+      } else {
+        if (!user.autoDL) {
+          user.autoDL = false;
+        }
+        user.autoDL = isEnable;
+      }
       break;
 
     default:
@@ -31,13 +46,15 @@ let handler = async (m, { bot, ctx, args, command, isOwner, chatId, userId, isAd
         return m.reply(`
 **ENABLE/DISABLE OPTIONS**
 
-- welcome
-- antichannel
+${isGroup ? '**Group Features:**' : '**Private Features:**'}
+${isGroup ? '- welcome' : ''}
+${isGroup ? '- antichannel' : ''}
+- autodl
 
-**Contoh Penggunaan:**
-/enable welcome
-/disable welcome
-/on antichannel
+**Usage Example:**
+/enable autodl
+/disable autodl
+/on welcome
 /off antichannel
         `.trim());
       }
@@ -45,15 +62,14 @@ let handler = async (m, { bot, ctx, args, command, isOwner, chatId, userId, isAd
   }
 
   await m.reply(`
-*Berhasil!*
+*Success!*
 
-Fitur **${type}** telah di**${isEnable ? 'aktifkan' : 'nonaktifkan'}** untuk chat ini
+Feature **${type}** has been **${isEnable ? 'enabled' : 'disabled'}** for this ${isGroup ? 'group' : 'chat'}
   `.trim());
 };
 
 handler.command = ['enable', 'disable', 'on', 'off', '1', '0', 'true', 'false'];
 handler.tags = ['group'];
 handler.help = ['enable <option>', 'disable <option>'];
-handler.group = true;
 
 module.exports = handler;
