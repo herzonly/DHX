@@ -3,7 +3,6 @@ const moment = require('moment-timezone');
 const { smsg } = require('./lib/simple');
 const fs = require('fs');
 const chalk = require('chalk');
-const print = require('./lib/print');
 
 const defaultUserData = {
   exp: 0,
@@ -189,29 +188,33 @@ const defaultUserData = {
   kuli: false
 };
 
+const defaultChatData = {
+  isBanned: false,
+  welcome: true,
+  sWelcome: '',
+  sLeave: '',
+  sPromote: '',
+  sDemote: '',
+  antiLink: false,
+  antiBot: false,
+  antiChannel: false,
+  antiVideo: false,
+  antiToxic: false,
+  antiNSFW: false,
+  detect: false,
+  desc: true,
+  delete: true,
+  autoDL: false,
+  viewonce: false,
+  autotr: false,
+  ngetik: true,
+  expired: 0,
+  allakses: true,
+  participants: []
+};
+
 module.exports = {
   async handler(bot, ctx) {
-
-    const originalReply = ctx.reply;
-    ctx.reply = async function(text, options) {
-      const result = await originalReply.call(this, text, options);
-      
-      if (typeof text === 'string') {
-        const fakeMessage = {
-          from: { id: bot.botInfo.id },
-          text: text
-        };
-        const fakeCtx = {
-          from: bot.botInfo,
-          chat: ctx.chat,
-          message: { text: text, date: Date.now() / 1000 }
-        };
-        await print(fakeMessage, fakeCtx, bot);
-      }
-      
-      return result;
-    };
-
     if (ctx.callbackQuery) {
       for (let name in global.plugins) {
         let plugin = global.plugins[name];
@@ -235,17 +238,22 @@ module.exports = {
     if (ctx.message?.new_chat_members) {
       try {
         const chatId = ctx.chat.id;
+        
+        if (!global.db.data.chats[chatId]) {
+          global.db.data.chats[chatId] = { ...defaultChatData };
+        }
+        
         const chat = global.db.data.chats[chatId];
         
         for (const member of ctx.message.new_chat_members) {
           if (member.id === ctx.botInfo.id) continue;
           
-          if (!global.db.data.chats[chatId].participants) {
-            global.db.data.chats[chatId].participants = [];
+          if (!chat.participants) {
+            chat.participants = [];
           }
           
-          if (!global.db.data.chats[chatId].participants.includes(member.id)) {
-            global.db.data.chats[chatId].participants.push(member.id);
+          if (!chat.participants.includes(member.id)) {
+            chat.participants.push(member.id);
           }
         }
         
@@ -298,13 +306,18 @@ module.exports = {
     if (ctx.message?.left_chat_member) {
       try {
         const chatId = ctx.chat.id;
+        
+        if (!global.db.data.chats[chatId]) {
+          global.db.data.chats[chatId] = { ...defaultChatData };
+        }
+        
         const chat = global.db.data.chats[chatId];
         const leftMember = ctx.message.left_chat_member;
         
-        if (global.db.data.chats[chatId].participants) {
-          const index = global.db.data.chats[chatId].participants.indexOf(leftMember.id);
+        if (chat.participants) {
+          const index = chat.participants.indexOf(leftMember.id);
           if (index > -1) {
-            global.db.data.chats[chatId].participants.splice(index, 1);
+            chat.participants.splice(index, 1);
           }
         }
         
@@ -351,6 +364,10 @@ module.exports = {
       m.text = text;
     }
 
+    if (!global.db.data.users) {
+      global.db.data.users = {};
+    }
+
     if (!global.db.data.users[userId]) {
       global.db.data.users[userId] = { ...defaultUserData };
       global.db.data.users[userId].name = m.from.first_name || 'User';
@@ -383,22 +400,20 @@ module.exports = {
       user.usertag = '@' + m.from.username;
     }
 
+    if (!global.db.data.chats) {
+      global.db.data.chats = {};
+    }
+
+    if (!global.db.data.chats[chatId]) {
+      global.db.data.chats[chatId] = { ...defaultChatData };
+    }
+
     let chat = global.db.data.chats[chatId];
-    if (isGroup && !chat) {
-      global.db.data.chats[chatId] = {
-        isBanned: false,
-        welcome: true,
-        sWelcome: '',
-        sLeave: '',
-        antiLink: false,
-        antiBot: false,
-        antiChannel: false,
-        detect: false,
-        desc: true,
-        delete: true,
-        participants: []
-      };
-      chat = global.db.data.chats[chatId];
+    
+    for (let key in defaultChatData) {
+      if (chat[key] === undefined || chat[key] === null) {
+        chat[key] = defaultChatData[key];
+      }
     }
 
     if (isGroup) {
