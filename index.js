@@ -7,7 +7,6 @@ const chalk = require('chalk');
 const syntaxError = require('syntax-error');
 const lodash = require('lodash');
 const { initializeHelper } = require('./lib/simple');
-const print = require('./lib/print')
 
 let dbLibrary;
 try {
@@ -168,14 +167,6 @@ function reloadModule(modulePath) {
       if (global.db.data == null) await loadDatabase();
       
       await require('./handler').handler(bot, ctx);
-      
-      if (ctx.message) {
-        const { smsg } = require('./lib/simple');
-        let m = await smsg(bot, ctx);
-        if (m) {
-          await print(m, ctx, bot);
-        }
-      }
     } catch (error) {
       console.error(chalk.red('Handler Error:'), error);
     }
