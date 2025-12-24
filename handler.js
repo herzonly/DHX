@@ -661,6 +661,15 @@ module.exports = {
     let text = m.text;
     const isGroup = m.isGroup;
 
+    if (global.waitingForAnswer && global.waitingForAnswer.has(chatId)) {
+      const session = global.waitingForAnswer.get(chatId);
+      if (session && session.resolve && !m.fromMe) {
+        clearTimeout(session.timeout);
+        session.resolve(text);
+        return;
+      }
+    }
+
     const botUsername = bot.botInfo?.username;
     if (botUsername && text.includes(`@${botUsername}`)) {
       text = text.replace(new RegExp(`@${botUsername}`, 'gi'), '').trim();
