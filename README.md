@@ -10,6 +10,9 @@ A simple and lightweight Telegram bot base built with Telegraf library. Easy to 
 - ⚡ Fast and responsive
 - 📦 Built with Telegraf library
 
+## Bot Function Docs
+### under construction ☹️ please wait
+
 ## 📋 Prerequisites
 
 - Node.js v18 or newer
