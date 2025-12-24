@@ -181,6 +181,17 @@ function reloadModule(modulePath) {
     }
     return next();
   });
+
+  bot.on('text', async (ctx) => {
+  const chatId = ctx.chat.id;
+  const session = global.waitingForAnswer.get(chatId);
+
+  if (session && session.resolve) {
+    clearTimeout(session.timeout);
+    const userAnswer = ctx.message.text;
+    session.resolve(userAnswer);
+  }
+});
     
   bot.on('callback_query', async (ctx) => {
     try {
