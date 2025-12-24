@@ -6,22 +6,30 @@ handler.before = async function (m, { user, isBotAdmin, isAdmin, bot, conn, chat
   if (m.fromMe) return
   
   let chatData = global.db.data.chats[m.chat]
-  let userData = global.db.data.users[m.from.id]
-  
-  let autoDLEnabled = false
-  
-  if (m.isGroup) {
-    if (!chatData || !chatData.autoDL) return
-    autoDLEnabled = true
-  } else {
-    if (!userData || !userData.autoDL) return
-    autoDLEnabled = true
-  }
-  
-  if (!autoDLEnabled) return
+  if (!chatData) return
+  if (!chatData.autoDL) return
   
   let text = m.text || m.caption || ''
   if (!text) return
+  
+  const prefixes = Array.isArray(global.prefix) ? global.prefix : [global.prefix]
+  let hasPrefix = false
+  
+  for (let prefix of prefixes) {
+    if (prefix instanceof RegExp) {
+      if (prefix.test(text)) {
+        hasPrefix = true
+        break
+      }
+    } else if (typeof prefix === 'string') {
+      if (text.startsWith(prefix)) {
+        hasPrefix = true
+        break
+      }
+    }
+  }
+  
+  if (hasPrefix) return
   
   const urlRegex = /https?:\/\/(www\.)?(tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com|instagram\.com|instagr\.am|twitter\.com|x\.com|facebook\.com|fb\.watch|youtube\.com|youtu\.be|pinterest\.com|threads\.net)[^\s]*/gi
   
