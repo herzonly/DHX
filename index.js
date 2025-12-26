@@ -50,6 +50,7 @@ function reloadModule(modulePath) {
       chats: {},
       stats: {},
       settings: {},
+      giveaways: {},
       ...(global.db.data || {})
     };
     global.db.chain = lodash.chain(global.db.data);
@@ -129,7 +130,7 @@ function reloadModule(modulePath) {
             const commands = Array.isArray(plugin.command) ? plugin.command : [plugin.command];
             commands.forEach(cmd => {
               const cmdStr = cmd instanceof RegExp ? cmd.toString() : cmd;
-              global.commands[cmdStr] = pluginFile;
+              global.commands[cmdStr] = filePath;
             });
           }
         } catch (error) {
@@ -183,15 +184,23 @@ function reloadModule(modulePath) {
   });
 
   bot.on('text', async (ctx) => {
-  const chatId = ctx.chat.id;
-  const session = global.waitingForAnswer.get(chatId);
+    const chatId = ctx.chat.id;
+    const session = global.waitingForAnswer.get(chatId);
 
-  if (session && session.resolve) {
-    clearTimeout(session.timeout);
-    const userAnswer = ctx.message.text;
-    session.resolve(userAnswer);
-  }
-});
+    if (session && session.resolve) {
+      clearTimeout(session.timeout);
+      const userAnswer = ctx.message.text;
+      session.resolve(userAnswer);
+    }
+  });
+
+  bot.on('message_reaction', async (ctx) => {
+    try {
+      await require('./handler').handler(bot, ctx);
+    } catch (error) {
+      console.error(chalk.red('Reaction Handler Error:'), error);
+    }
+  });
     
   bot.on('callback_query', async (ctx) => {
     try {
@@ -258,7 +267,8 @@ function reloadModule(modulePath) {
   });
 
   bot.launch({
-    dropPendingUpdates: true
+    dropPendingUpdates: true,
+    allowedUpdates: ['message', 'callback_query', 'message_reaction', 'message_reaction_count']
   });
 
   console.log(chalk.green('Bot is running...'));
