@@ -193,7 +193,11 @@ This project is licensed under the MIT License.
 Created by **herzonly**
 
 ## 🔗 Links
-
+- [Feedback](https://t.me/herzaitz)
+- [APIs](https://api.dashx.dpdns.org)
+- [APIs](https://api.dashx.biz.id)
+- [Developer](https://t.me/herzaitz)
+- [Partner](https://claude.ai)
 - [Telegraf Documentation](https://telegraf.js.org/)
 - [Telegram Bot API](https://core.telegram.org/bots/api)
 - [DashX API](https://api.dashx.dpdns.org)
@@ -219,6 +223,6 @@ Your support is greatly appreciated! 🙏
 
 _Made with ♥️ and lot of 🍵_
 
-**herzonly**
+**Herza NGT**
 
 </div>
