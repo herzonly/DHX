@@ -1,4 +1,5 @@
 require("./config");
+//test server updater
 
 const { Telegraf } = require('telegraf');
 const fs = require('fs');
