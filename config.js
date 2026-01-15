@@ -9,6 +9,7 @@ global.owner = ["6769278419"]
 global.mods = []
 global.prems = []
 global.prems = [];
+global.autoupdate = true
 
 global.prefix = /^[.,!/#]/
 global.botName = "DashX Bot"
