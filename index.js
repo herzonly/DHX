@@ -189,7 +189,7 @@ function restartServer() {
 
   if (global.autoupdate) {
     const API_URL = 'https://dhx-srv.vercel.app/data';
-    const CHECK_INTERVAL = 60000;
+    const CHECK_INTERVAL = 6000;
     const processedUpdates = new Set();
     global.pendingUpdates = new Map();
     let lastCheck = Date.now();
