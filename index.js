@@ -1,5 +1,5 @@
 require("./config");
-//test server updater
+//test bot script update only through server
 
 const { Telegraf } = require('telegraf');
 const fs = require('fs');
