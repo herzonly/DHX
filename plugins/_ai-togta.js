@@ -1,6 +1,6 @@
+Ah, saya lihat sekarang! Ini adalah bot Telegram, bukan WhatsApp. Struktur datanya berbeda. Gambar ada di m.quoted.message.photo. Mari saya perbaiki:
 const axios = require('axios');
 const FormData = require('form-data');
-//push
 
 async function up(buffer) {
   try {
@@ -32,9 +32,9 @@ async function chk(jobId, apiKey) {
 
 let herza = async(m, { conn, usedPrefix, command }) => {
   let q = m.quoted ? m.quoted : m;
-  let mime = (q.msg || q).mimetype || '';
+  let hasPhoto = (q.message && q.message.photo) || (m.message && m.message.photo);
   
-  if (!mime || !/image\/(jpe?g|png)/.test(mime)) {
+  if (!hasPhoto) {
     return m.reply(`Please reply or send an image\nExample: ${usedPrefix+command} (reply to image)`);
   }
   
