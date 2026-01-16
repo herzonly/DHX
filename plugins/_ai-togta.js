@@ -22,7 +22,7 @@ async function up(buffer) {
 
 async function chk(jobId, apiKey) {
   try {
-    const response = await axios.get(`https://api.dashx.biz.id/api/job/img2gta?job_id=${jobId}&key=${apiKey}`);
+    const response = await axios.get(`https://api.dashx.biz.id/api/job/img2gta?id=${jobId}&key=${apiKey}`);
     return response.data;
   } catch (error) {
     throw new Error('Job status check failed: ' + error.message);
@@ -45,7 +45,7 @@ let herza = async(m, { conn, usedPrefix, command }) => {
     
     await m.reply('🎨 Converting to GTA style...');
     
-    let response = await axios.get(`https://api.dashx.biz.id/api/ai/img2gta?img=${encodeURIComponent(mediaUrl)}&key=${dhx}`);
+    let response = await axios.get(`https://api.dashx.biz.id/api/AI/img2gta?image=${encodeURIComponent(mediaUrl)}&key=${dhx}`);
     
     if (!response.data || !response.data.success || !response.data.data || !response.data.data.job_id) {
       throw new Error('Failed to create job');
