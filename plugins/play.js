@@ -98,22 +98,46 @@ let handler = async (m, { bot, args, DHX }) => {
       return m.reply('❌ Audio tidak tersedia')
     }
 
-    let audioUrl = audioDownload.url
+    let audioProcessUrl = audioDownload.url
+    
+    let audioFileResponse = await axios.get(audioProcessUrl, {
+      timeout: 60000,
+      validateStatus: function (status) {
+        return status < 500
+      }
+    })
+    
+    if (!audioFileResponse.data || !audioFileResponse.data.fileUrl) {
+      return m.reply('❌ Gagal mendapatkan URL download audio')
+    }
+    
+    let audioUrl = audioFileResponse.data.fileUrl
     let title = data.title
 
-    const audioBuffer = await bot.getBuffer(audioUrl)
+    const timestamp = Date.now()
+    const tempM4a = path.join(__dirname, `temp_${timestamp}.m4a`)
+    const tempMp3 = path.join(__dirname, `temp_${timestamp}.mp3`)
     
-    const tempM4a = path.join(__dirname, `temp_${Date.now()}.m4a`)
-    const tempMp3 = path.join(__dirname, `temp_${Date.now()}.mp3`)
+    const writer = fs.createWriteStream(tempM4a)
+    const audioResponse = await axios({
+      url: audioUrl,
+      method: 'GET',
+      responseType: 'stream'
+    })
     
-    fs.writeFileSync(tempM4a, audioBuffer)
+    audioResponse.data.pipe(writer)
+    
+    await new Promise((resolve, reject) => {
+      writer.on('finish', resolve)
+      writer.on('error', reject)
+    })
     
     await execAsync(`ffmpeg -i "${tempM4a}" -vn -ar 44100 -ac 2 -b:a 128k "${tempMp3}"`)
     
     const mp3Buffer = fs.readFileSync(tempMp3)
     
-    await unlinkAsync(tempM4a)
-    await unlinkAsync(tempMp3)
+    await unlinkAsync(tempM4a).catch(() => {})
+    await unlinkAsync(tempMp3).catch(() => {})
 
     await bot.sendAudio(m.chat, mp3Buffer, {
       caption: `🎵 *${title}*\n👤 ${data.channel.name}\n⏱ ${data.duration}`,
