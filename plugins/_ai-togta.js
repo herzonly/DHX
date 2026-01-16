@@ -30,16 +30,17 @@ async function chk(jobId, apiKey) {
 }
 
 let herza = async(m, { conn, usedPrefix, command }) => {
-  let media = m.quoted ? m.quoted : m;
+  let q = m.quoted ? m.quoted : m;
+  let mime = (q.msg || q).mimetype || '';
   
-  if(!media || !/image/.test(media.mimetype || media.msg?.mimetype || '')) {
+  if (!mime || !/image\/(jpe?g|png)/.test(mime)) {
     return m.reply(`Please reply or send an image\nExample: ${usedPrefix+command} (reply to image)`);
   }
   
   await m.reply('⏳ Uploading image...');
   
   try {
-    let buffer = await media.download();
+    let buffer = await q.download();
     let mediaUrl = await up(buffer);
     
     await m.reply('🎨 Converting to GTA style...');
