@@ -1,4 +1,3 @@
-Ah, saya lihat sekarang! Ini adalah bot Telegram, bukan WhatsApp. Struktur datanya berbeda. Gambar ada di m.quoted.message.photo. Mari saya perbaiki:
 const axios = require('axios');
 const FormData = require('form-data');
 
