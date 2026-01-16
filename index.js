@@ -1,5 +1,4 @@
 require("./config");
-// buff
 
 const { Telegraf, Markup } = require('telegraf');
 const fs = require('fs');
