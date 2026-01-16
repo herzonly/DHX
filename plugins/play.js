@@ -39,6 +39,10 @@ let handler = async (m, { bot, args }) => {
       return m.reply('❌ Video lebih dari 1 jam!')
     }
 
+    const description = searchData.description.length > 150 
+      ? searchData.description.substring(0, 150) + '...' 
+      : searchData.description
+
     const caption = `╭─────═[ Youtube Play ]═─────⋆
 ├ ⬡ *Title:* ${searchData.title}
 ├ ⬡ *Duration:* ${searchData.timestamp}
@@ -46,11 +50,9 @@ let handler = async (m, { bot, args }) => {
 ├ ⬡ *Viewers:* ${searchData.views.toLocaleString()}
 ├ ⬡ *Channel:* ${searchData.author.name}
 ├ ⬡ *ID:* ${searchData.videoId}
-├ ⬡ *Description:* ${searchData.description.substring(0, 100)}...
+├ ⬡ *Description:* ${description}
 ├ ⬡ *Url:* ${searchData.url}
-╰───────────────⋆
-
-⏳ _Mengunduh audio..._`
+╰───────────────⋆`
 
     const thumbnailBuffer = await bot.getBuffer(searchData.thumbnail)
 
@@ -65,7 +67,7 @@ let handler = async (m, { bot, args }) => {
 
     await bot.sendChatAction(m.chat, 'upload_audio')
 
-    let apiUrl = `https://api.dashx.biz.id/api/download/youtube?url=${encodeURIComponent(videoUrl)}&type=mp3&key=DHX-M3SA`
+    let apiUrl = `https://api.dashx.biz.id/api/download/youtube?url=${encodeURIComponent(videoUrl)}&key=DHX-M3SA`
     let response = await axios.get(apiUrl, {
       timeout: 60000,
       validateStatus: function (status) {
@@ -78,19 +80,28 @@ let handler = async (m, { bot, args }) => {
     }
 
     let data = response.data.data
-    let audioUrl = data.download.url
-    let title = data.metadata.title
-    let duration = data.metadata.duration
+    
+    let audioDownload = data.downloads.find(item => item.type === 'Audio' && item.quality === '128K')
+    if (!audioDownload) {
+      audioDownload = data.downloads.find(item => item.type === 'Audio')
+    }
+    
+    if (!audioDownload) {
+      return m.reply('❌ Audio tidak tersedia')
+    }
+
+    let audioUrl = audioDownload.url
+    let title = data.title
 
     const audioBuffer = await bot.getBuffer(audioUrl)
 
     await bot.sendAudio(m.chat, audioBuffer, {
-      caption: `🎵 *${title}*\n👤 ${searchData.author.name}\n⏱ ${searchData.timestamp}`,
+      caption: `🎵 *${title}*\n👤 ${data.channel.name}\n⏱ ${data.duration}`,
       parse_mode: 'Markdown',
       reply_to_message_id: m.message_id,
       title: title,
-      performer: searchData.author.name,
-      duration: duration,
+      performer: data.channel.name,
+      duration: data.duration,
       thumbnail: thumbnailBuffer
     })
 
