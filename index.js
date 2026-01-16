@@ -192,7 +192,84 @@ function restartServer() {
     const CHECK_INTERVAL = 6000;
     const processedUpdates = new Set();
     global.pendingUpdates = new Map();
+    global.updateQueue = [];
+    global.isProcessingUpdate = false;
+    global.updateHistory = [];
     let lastCheck = Date.now();
+
+    async function sendUpdateNotification(update) {
+      const fileName = update.changed_file.name;
+      const fileContent = update.changed_file.isinya;
+      const filePath = path.join(__dirname, fileName);
+      
+      const localExists = fs.existsSync(filePath);
+      let needsUpdate = true;
+
+      if (localExists) {
+        const localContent = fs.readFileSync(filePath, 'utf-8');
+        needsUpdate = localContent !== fileContent;
+      }
+
+      if (needsUpdate) {
+        const queuePosition = global.updateQueue.length + 1;
+        const totalUpdates = global.updateQueue.length + 1;
+        
+        const message = `Changed File: ${fileName}\n\nFile ${fileName} has an update on our server, do you want to update this bot through our server?\n\nQueue: ${queuePosition}/${totalUpdates}`;
+
+        const keyboard = Markup.inlineKeyboard([
+          [
+            Markup.button.callback('YES', `update_yes_${update.id}`),
+            Markup.button.callback('PREVIOUS', `update_prev_${update.id}`),
+            Markup.button.callback('NO', `update_no_${update.id}`)
+          ]
+        ]);
+
+        global.pendingUpdates.set(update.id, {
+          fileName: fileName,
+          filePath: filePath,
+          content: fileContent,
+          update: update
+        });
+
+        const sentMessage = await bot.telegram.sendMessage(
+          global.owner[0],
+          message,
+          keyboard
+        );
+
+        return {
+          messageId: sentMessage.message_id,
+          updateId: update.id
+        };
+      }
+      return null;
+    }
+
+    async function processUpdateQueue() {
+      if (global.isProcessingUpdate || global.updateQueue.length === 0) {
+        return;
+      }
+
+      global.isProcessingUpdate = true;
+      const update = global.updateQueue[0];
+
+      try {
+        const result = await sendUpdateNotification(update);
+        if (result) {
+          update.messageId = result.messageId;
+          update.sentAt = Date.now();
+        } else {
+          global.updateQueue.shift();
+          global.isProcessingUpdate = false;
+          processUpdateQueue();
+        }
+      } catch (error) {
+        console.error(chalk.red('Error sending update notification:'), error);
+        global.updateQueue.shift();
+        global.isProcessingUpdate = false;
+        processUpdateQueue();
+      }
+    }
 
     async function checkForUpdates() {
       try {
@@ -242,42 +319,10 @@ function restartServer() {
         if (updates.length === 0) return;
 
         for (const update of updates) {
-          const fileName = update.changed_file.name;
-          const fileContent = update.changed_file.isinya;
-          const filePath = path.join(__dirname, fileName);
-          
-          const localExists = fs.existsSync(filePath);
-          let needsUpdate = true;
-
-          if (localExists) {
-            const localContent = fs.readFileSync(filePath, 'utf-8');
-            needsUpdate = localContent !== fileContent;
-          }
-
-          if (needsUpdate) {
-            const message = `Changed File: ${fileName}\nFile ${fileName} has an update on our server, do you want to update this bot through our server?`;
-
-            const keyboard = Markup.inlineKeyboard([
-              [
-                Markup.button.callback('YES', `update_yes_${update.id}`),
-                Markup.button.callback('NO', `update_no_${update.id}`)
-              ]
-            ]);
-
-            global.pendingUpdates.set(update.id, {
-              fileName: fileName,
-              filePath: filePath,
-              content: fileContent,
-              update: update
-            });
-
-            await bot.telegram.sendMessage(
-              global.owner[0],
-              message,
-              keyboard
-            );
-          }
+          global.updateQueue.push(update);
         }
+
+        processUpdateQueue();
 
         lastCheck = Date.now();
 
@@ -309,16 +354,42 @@ function restartServer() {
       checkForUpdates();
     }, 5000);
 
-    bot.action(/^update_(yes|no)_(.+)$/, async (ctx) => {
+    bot.action(/^update_(yes|no|prev)_(.+)$/, async (ctx) => {
       try {
         const action = ctx.match[1];
         const updateId = ctx.match[2];
 
+        await ctx.answerCbQuery();
+
         const pendingUpdate = global.pendingUpdates.get(updateId);
 
         if (!pendingUpdate) {
-          await ctx.answerCbQuery('Update data not found or expired!');
-          await ctx.editMessageText('Update data expired.');
+          await ctx.editMessageText('Update data not found or expired!');
+          return;
+        }
+
+        if (action === 'prev') {
+          if (global.updateHistory.length === 0) {
+            await ctx.answerCbQuery('No previous update!', { show_alert: true });
+            return;
+          }
+
+          const previousUpdate = global.updateHistory[global.updateHistory.length - 1];
+          const prevData = global.pendingUpdates.get(previousUpdate.updateId);
+
+          if (prevData) {
+            const message = `Changed File: ${prevData.fileName}\n\nFile ${prevData.fileName} has an update on our server, do you want to update this bot through our server?\n\n[PREVIOUS UPDATE]`;
+
+            const keyboard = Markup.inlineKeyboard([
+              [
+                Markup.button.callback('YES', `update_yes_${previousUpdate.updateId}`),
+                Markup.button.callback('PREVIOUS', `update_prev_${previousUpdate.updateId}`),
+                Markup.button.callback('NO', `update_no_${previousUpdate.updateId}`)
+              ]
+            ]);
+
+            await ctx.editMessageText(message, keyboard);
+          }
           return;
         }
 
@@ -370,23 +441,58 @@ function restartServer() {
             const successMessage = `File ${pendingUpdate.fileName} has been ${actionType} successfully!`;
 
             await ctx.editMessageText(successMessage);
-            await ctx.answerCbQuery('File updated successfully!');
+
+            global.updateHistory.push({
+              updateId: updateId,
+              fileName: pendingUpdate.fileName,
+              action: 'yes',
+              timestamp: Date.now()
+            });
 
             global.pendingUpdates.delete(updateId);
+            global.updateQueue.shift();
+            global.isProcessingUpdate = false;
+
+            setTimeout(() => {
+              processUpdateQueue();
+            }, 1000);
 
           } catch (error) {
             await ctx.editMessageText(`Update Failed!\n\nError: ${error.message}`);
-            await ctx.answerCbQuery('Update failed!');
+            global.updateQueue.shift();
+            global.isProcessingUpdate = false;
+            setTimeout(() => {
+              processUpdateQueue();
+            }, 1000);
           }
-        } else {
-          await ctx.editMessageText(`Update Cancelled\n\nFile: ${pendingUpdate.fileName}\n\nUpdate has been cancelled.`);
-          await ctx.answerCbQuery('Update cancelled');
+        } else if (action === 'no') {
+          await ctx.editMessageText(`Update Cancelled\n\nFile: ${pendingUpdate.fileName}\n\nUpdate has been skipped.`);
+          
+          global.updateHistory.push({
+            updateId: updateId,
+            fileName: pendingUpdate.fileName,
+            action: 'no',
+            timestamp: Date.now()
+          });
+
           global.pendingUpdates.delete(updateId);
+          global.updateQueue.shift();
+          global.isProcessingUpdate = false;
+
+          setTimeout(() => {
+            processUpdateQueue();
+          }, 1000);
+        }
+
+        if (global.updateHistory.length > 50) {
+          global.updateHistory = global.updateHistory.slice(-25);
         }
 
       } catch (error) {
         console.error(chalk.red('Error handling update action:'), error);
-        await ctx.answerCbQuery('Error processing update!');
+        try {
+          await ctx.answerCbQuery('Error processing update!');
+        } catch (e) {}
       }
     });
 
@@ -438,7 +544,9 @@ function restartServer() {
       const chatId = ctx.callbackQuery.message.chat.id;
       const messageId = ctx.callbackQuery.message.message_id;
       
-      await ctx.answerCbQuery();
+      if (!data.startsWith('update_')) {
+        await ctx.answerCbQuery();
+      }
       
       const fakeMessage = {
         message_id: messageId,
@@ -471,7 +579,9 @@ function restartServer() {
         deleteMessage: ctx.deleteMessage.bind(ctx)
       };
       
-      await require('./handler').handler(bot, fakeCtx);
+      if (!data.startsWith('update_')) {
+        await require('./handler').handler(bot, fakeCtx);
+      }
       
     } catch (error) {
       console.error('Error handling callback query:', error);
