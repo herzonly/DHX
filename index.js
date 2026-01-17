@@ -1,7 +1,6 @@
 require("./config");
-//push  filebb
 
-const { Telegraf, Markup } = require('telegraf');
+const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
@@ -9,7 +8,7 @@ const syntaxError = require('syntax-error');
 const lodash = require('lodash');
 const axios = require('axios');
 const { initializeHelper } = require('./lib/simple');
-const print = require('./lib/print')
+const print = require('./lib/print');
 
 let dbLibrary;
 try {
@@ -25,9 +24,289 @@ function reloadModule(modulePath) {
   return require(modulePath);
 }
 
-function restartServer() {
-  console.log(chalk.yellow('Restarting server...'));
-  process.exit(0);
+const pendingFile = path.join(__dirname, 'data/pending-updates.json');
+const pendingDir = path.dirname(pendingFile);
+if (!fs.existsSync(pendingDir)) {
+  fs.mkdirSync(pendingDir, { recursive: true });
+}
+
+let pendingUpdates = new Map();
+let processedIds = new Set();
+let lastCheckedTimestamp = null;
+
+function loadPendingUpdates() {
+  try {
+    if (fs.existsSync(pendingFile)) {
+      const data = JSON.parse(fs.readFileSync(pendingFile, 'utf8'));
+      pendingUpdates = new Map(Object.entries(data.updates || {}));
+      processedIds = new Set(data.processedIds || []);
+      lastCheckedTimestamp = data.lastChecked || null;
+    }
+  } catch (error) {
+    console.error(chalk.red('Error loading pending updates:'), error);
+  }
+}
+
+function savePendingUpdates() {
+  try {
+    const data = {
+      updates: Object.fromEntries(pendingUpdates),
+      processedIds: Array.from(processedIds),
+      lastChecked: lastCheckedTimestamp
+    };
+    fs.writeFileSync(pendingFile, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error(chalk.red('Error saving pending updates:'), error);
+  }
+}
+
+function formatUpdateMessage(update) {
+  const { changed_file, commit } = update;
+  
+  let message = `UPDATE AVAILABLE\n\n`;
+  message += `File: ${changed_file.name}\n`;
+  message += `Status: ${changed_file.status}\n`;
+  message += `Additions: ${changed_file.additions} lines\n`;
+  message += `Deletions: ${changed_file.deletions} lines\n\n`;
+  message += `Commit Message:\n${commit.message}\n\n`;
+  message += `Author: ${commit.author}\n`;
+  message += `Date: ${new Date(commit.date).toLocaleString()}\n\n`;
+  message += `Do you want to accept this update?`;
+  
+  return message;
+}
+
+async function applyUpdate(update) {
+  try {
+    const { changed_file } = update;
+    const filePath = path.join(__dirname, changed_file.name);
+    
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    fs.writeFileSync(filePath, changed_file.isinya, 'utf8');
+    
+    console.log(chalk.green(`Updated: ${changed_file.name}`));
+    return true;
+  } catch (error) {
+    console.error(chalk.red(`Error applying update:`), error);
+    return false;
+  }
+}
+
+async function checkForUpdates(bot) {
+  if (!global.autoupdate) {
+    return;
+  }
+
+  try {
+    const response = await axios.get('https://dhx-srv.vercel.app/data');
+    const { success, data, timestamp } = response.data;
+    
+    if (!success || !data || data.length === 0) {
+      return;
+    }
+    
+    lastCheckedTimestamp = timestamp;
+    
+    for (const update of data) {
+      if (processedIds.has(update.id)) {
+        continue;
+      }
+      
+      if (pendingUpdates.has(update.id)) {
+        continue;
+      }
+      
+      pendingUpdates.set(update.id, {
+        update: update,
+        messageId: null,
+        chatId: Array.isArray(global.owner) ? global.owner[0] : global.owner
+      });
+      
+      await sendUpdateNotification(bot, update);
+    }
+    
+    savePendingUpdates();
+    
+  } catch (error) {
+    console.error(chalk.red('Error checking for updates:'), error);
+  }
+}
+
+async function sendUpdateNotification(bot, update) {
+  try {
+    const message = formatUpdateMessage(update);
+    
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: 'YES', callback_data: `update_accept_${update.id}` },
+          { text: 'NO', callback_data: `update_reject_${update.id}` }
+        ]
+      ]
+    };
+    
+    const ownerId = Array.isArray(global.owner) ? global.owner[0] : global.owner;
+    
+    const sentMessage = await bot.telegram.sendMessage(
+      ownerId,
+      message,
+      {
+        reply_markup: keyboard
+      }
+    );
+    
+    const pending = pendingUpdates.get(update.id);
+    if (pending) {
+      pending.messageId = sentMessage.message_id;
+      pending.chatId = sentMessage.chat.id;
+      savePendingUpdates();
+    }
+    
+  } catch (error) {
+    console.error(chalk.red('Error sending update notification:'), error);
+  }
+}
+
+async function handleUpdateResponse(bot, ctx, action, updateId) {
+  try {
+    const pending = pendingUpdates.get(updateId);
+    
+    if (!pending) {
+      await ctx.answerCbQuery('Update not found!');
+      return;
+    }
+    
+    const update = pending.update;
+    
+    if (action === 'accept') {
+      const success = await applyUpdate(update);
+      
+      if (success) {
+        await ctx.editMessageText(
+          `Update accepted and applied successfully!\n\nFile: ${update.changed_file.name}\nStatus: ${update.changed_file.status}`,
+          {
+            chat_id: pending.chatId,
+            message_id: pending.messageId
+          }
+        );
+        
+        await ctx.answerCbQuery('Update applied successfully!');
+      } else {
+        await ctx.answerCbQuery('Failed to apply update!');
+      }
+    } else {
+      await ctx.editMessageText(
+        `Update rejected!\n\nFile: ${update.changed_file.name}\nStatus: ${update.changed_file.status}`,
+        {
+          chat_id: pending.chatId,
+          message_id: pending.messageId
+        }
+      );
+      
+      await ctx.answerCbQuery('Update rejected!');
+    }
+    
+    processedIds.add(updateId);
+    pendingUpdates.delete(updateId);
+    savePendingUpdates();
+    
+    await checkAndSendNextUpdate(bot);
+    
+  } catch (error) {
+    console.error(chalk.red('Error handling update response:'), error);
+    await ctx.answerCbQuery('An error occurred!');
+  }
+}
+
+async function checkAndSendNextUpdate(bot) {
+  if (!global.autoupdate) {
+    return;
+  }
+
+  try {
+    const response = await axios.get('https://dhx-srv.vercel.app/data');
+    const { success, data } = response.data;
+    
+    if (!success || !data || data.length === 0) {
+      return;
+    }
+    
+    for (const update of data) {
+      if (processedIds.has(update.id)) {
+        continue;
+      }
+      
+      if (pendingUpdates.has(update.id)) {
+        const pending = pendingUpdates.get(update.id);
+        if (pending.messageId) {
+          await updateExistingMessage(bot, update, pending);
+        }
+      } else {
+        pendingUpdates.set(update.id, {
+          update: update,
+          messageId: null,
+          chatId: Array.isArray(global.owner) ? global.owner[0] : global.owner
+        });
+        
+        await sendUpdateNotification(bot, update);
+        break;
+      }
+    }
+    
+    savePendingUpdates();
+    
+  } catch (error) {
+    console.error(chalk.red('Error checking next update:'), error);
+  }
+}
+
+async function updateExistingMessage(bot, update, pending) {
+  try {
+    const message = formatUpdateMessage(update);
+    
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: 'YES', callback_data: `update_accept_${update.id}` },
+          { text: 'NO', callback_data: `update_reject_${update.id}` }
+        ]
+      ]
+    };
+    
+    await bot.telegram.editMessageText(
+      pending.chatId,
+      pending.messageId,
+      null,
+      message,
+      {
+        reply_markup: keyboard
+      }
+    );
+    
+  } catch (error) {
+    console.error(chalk.red('Error updating existing message:'), error);
+  }
+}
+
+function startUpdateChecker(bot) {
+  if (!global.autoupdate) {
+    console.log(chalk.yellow('Auto-update is disabled'));
+    return;
+  }
+
+  loadPendingUpdates();
+  
+  console.log(chalk.cyan('Server update checker started'));
+  
+  setInterval(() => {
+    checkForUpdates(bot);
+  }, 60000);
+  
+  checkForUpdates(bot);
 }
 
 (async () => {
@@ -137,7 +416,7 @@ function restartServer() {
             const commands = Array.isArray(plugin.command) ? plugin.command : [plugin.command];
             commands.forEach(cmd => {
               const cmdStr = cmd instanceof RegExp ? cmd.toString() : cmd;
-              global.commands[cmdStr] = filePath;
+              global.commands[cmdStr] = pluginFile;
             });
           }
         } catch (error) {
@@ -152,28 +431,11 @@ function restartServer() {
   global.reloadHandler = function() {
     console.log(chalk.cyan('Reloading handler...'));
     
-    const handlerPath = path.join(__dirname, 'handler.js');
-    if (require.cache[handlerPath]) {
-      delete require.cache[handlerPath];
-    }
+    const handlerModule = reloadModule('./handler');
     
-    const handlerModule = require('./handler');
+    bot.handler = handlerModule.handler.bind(bot);
     
     console.log(chalk.green('Handler reloaded successfully'));
-    return true;
-  };
-
-  global.reloadConfig = function() {
-    console.log(chalk.cyan('Reloading config...'));
-    
-    const configPath = path.join(__dirname, 'config.js');
-    if (require.cache[configPath]) {
-      delete require.cache[configPath];
-    }
-    
-    require('./config');
-    
-    console.log(chalk.green('Config reloaded successfully'));
     return true;
   };
 
@@ -188,317 +450,7 @@ function restartServer() {
     }, 30000);
   }
 
-  if (global.autoupdate) {
-    const API_URL = 'https://dhx-srv.vercel.app/data';
-    const CHECK_INTERVAL = 6000;
-    const processedUpdates = new Set();
-    global.pendingUpdates = new Map();
-    global.updateQueue = [];
-    global.isProcessingUpdate = false;
-    global.updateHistory = [];
-    let lastCheck = Date.now();
-
-    async function sendUpdateNotification(update) {
-      const fileName = update.changed_file.name;
-      const fileContent = update.changed_file.isinya;
-      const filePath = path.join(__dirname, fileName);
-      
-      const localExists = fs.existsSync(filePath);
-      let needsUpdate = true;
-
-      if (localExists) {
-        const localContent = fs.readFileSync(filePath, 'utf-8');
-        needsUpdate = localContent !== fileContent;
-      }
-
-      if (needsUpdate) {
-        const queuePosition = global.updateQueue.length + 1;
-        const totalUpdates = global.updateQueue.length + 1;
-        
-        const message = `Changed File: ${fileName}\n\nFile ${fileName} has an update on our server, do you want to update this bot through our server?\n\nQueue: ${queuePosition}/${totalUpdates}`;
-
-        const keyboard = Markup.inlineKeyboard([
-          [
-            Markup.button.callback('YES', `update_yes_${update.id}`),
-            Markup.button.callback('PREVIOUS', `update_prev_${update.id}`),
-            Markup.button.callback('NO', `update_no_${update.id}`)
-          ]
-        ]);
-
-        global.pendingUpdates.set(update.id, {
-          fileName: fileName,
-          filePath: filePath,
-          content: fileContent,
-          update: update
-        });
-
-        const sentMessage = await bot.telegram.sendMessage(
-          global.owner[0],
-          message,
-          keyboard
-        );
-
-        return {
-          messageId: sentMessage.message_id,
-          updateId: update.id
-        };
-      }
-      return null;
-    }
-
-    async function processUpdateQueue() {
-      if (global.isProcessingUpdate || global.updateQueue.length === 0) {
-        return;
-      }
-
-      global.isProcessingUpdate = true;
-      const update = global.updateQueue[0];
-
-      try {
-        const result = await sendUpdateNotification(update);
-        if (result) {
-          update.messageId = result.messageId;
-          update.sentAt = Date.now();
-        } else {
-          global.updateQueue.shift();
-          global.isProcessingUpdate = false;
-          processUpdateQueue();
-        }
-      } catch (error) {
-        console.error(chalk.red('Error sending update notification:'), error);
-        global.updateQueue.shift();
-        global.isProcessingUpdate = false;
-        processUpdateQueue();
-      }
-    }
-
-    async function checkForUpdates() {
-      try {
-        const response = await axios.get(API_URL, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000,
-          validateStatus: function (status) {
-            return status === 200;
-          }
-        });
-        
-        if (!response.data || typeof response.data !== 'object') {
-          console.error(chalk.yellow('Invalid response format'));
-          return;
-        }
-        
-        if (!response.data.success) {
-          return;
-        }
-
-        if (!response.data.data || !Array.isArray(response.data.data)) {
-          return;
-        }
-
-        if (response.data.count === 0 || response.data.data.length === 0) {
-          return;
-        }
-
-        const updates = response.data.data.filter(item => {
-          if (!item || !item.id || !item.changed_file || !item.created_at) {
-            return false;
-          }
-
-          const itemTime = new Date(item.created_at).getTime();
-          const updateKey = `${item.id}-${item.changed_file.name}`;
-          
-          if (itemTime > lastCheck && !processedUpdates.has(updateKey)) {
-            processedUpdates.add(updateKey);
-            return true;
-          }
-          return false;
-        });
-
-        if (updates.length === 0) return;
-
-        for (const update of updates) {
-          global.updateQueue.push(update);
-        }
-
-        processUpdateQueue();
-
-        lastCheck = Date.now();
-
-        if (processedUpdates.size > 1000) {
-          const arr = Array.from(processedUpdates);
-          processedUpdates.clear();
-          arr.slice(-500).forEach(item => processedUpdates.add(item));
-        }
-
-      } catch (error) {
-        if (error.response) {
-          console.error(chalk.red(`API Error ${error.response.status}:`), error.response.statusText);
-        } else if (error.request) {
-          console.error(chalk.red('Network Error: Cannot reach API server'));
-        } else if (error.code === 'ECONNABORTED') {
-          console.error(chalk.red('Request timeout'));
-        } else if (error.code === 'ENOTFOUND') {
-          console.error(chalk.red('DNS Error: Cannot resolve API hostname'));
-        } else {
-          console.error(chalk.red('API Error:'), error.message || 'Unknown error');
-        }
-      }
-    }
-
-    setInterval(checkForUpdates, CHECK_INTERVAL);
-    
-    setTimeout(() => {
-      console.log(chalk.cyan('Starting initial update check...'));
-      checkForUpdates();
-    }, 5000);
-
-    bot.action(/^update_(yes|no|prev)_(.+)$/, async (ctx) => {
-      try {
-        const action = ctx.match[1];
-        const updateId = ctx.match[2];
-
-        await ctx.answerCbQuery();
-
-        const pendingUpdate = global.pendingUpdates.get(updateId);
-
-        if (!pendingUpdate) {
-          await ctx.editMessageText('Update data not found or expired!');
-          return;
-        }
-
-        if (action === 'prev') {
-          if (global.updateHistory.length === 0) {
-            await ctx.answerCbQuery('No previous update!', { show_alert: true });
-            return;
-          }
-
-          const previousUpdate = global.updateHistory[global.updateHistory.length - 1];
-          const prevData = global.pendingUpdates.get(previousUpdate.updateId);
-
-          if (prevData) {
-            const message = `Changed File: ${prevData.fileName}\n\nFile ${prevData.fileName} has an update on our server, do you want to update this bot through our server?\n\n[PREVIOUS UPDATE]`;
-
-            const keyboard = Markup.inlineKeyboard([
-              [
-                Markup.button.callback('YES', `update_yes_${previousUpdate.updateId}`),
-                Markup.button.callback('PREVIOUS', `update_prev_${previousUpdate.updateId}`),
-                Markup.button.callback('NO', `update_no_${previousUpdate.updateId}`)
-              ]
-            ]);
-
-            await ctx.editMessageText(message, keyboard);
-          }
-          return;
-        }
-
-        if (action === 'yes') {
-          try {
-            const dir = path.dirname(pendingUpdate.filePath);
-            if (!fs.existsSync(dir)) {
-              fs.mkdirSync(dir, { recursive: true });
-            }
-
-            fs.writeFileSync(pendingUpdate.filePath, pendingUpdate.content, 'utf-8');
-
-            const fileName = pendingUpdate.fileName;
-            const isPluginFile = fileName.startsWith('plugins/') || pendingUpdate.filePath.includes('/plugins/');
-            const isHandlerFile = fileName === 'handler.js' || fileName.endsWith('/handler.js');
-            const isConfigFile = fileName === 'config.js' || fileName.endsWith('/config.js');
-            
-            let actionType = 'updated';
-            
-            if (isPluginFile) {
-              actionType = 'auto-reloaded';
-              setTimeout(() => {
-                const pluginFileName = path.basename(pendingUpdate.fileName);
-                if (global.reload) {
-                  global.reload('change', pluginFileName);
-                }
-              }, 1000);
-            } else if (isHandlerFile) {
-              actionType = 'auto-reloaded';
-              setTimeout(() => {
-                if (global.reloadHandler) {
-                  global.reloadHandler();
-                }
-              }, 1000);
-            } else if (isConfigFile) {
-              actionType = 'auto-reloaded';
-              setTimeout(() => {
-                if (global.reloadConfig) {
-                  global.reloadConfig();
-                }
-              }, 1000);
-            } else {
-              actionType = 'updated (server will restart)';
-              setTimeout(() => {
-                restartServer();
-              }, 2000);
-            }
-
-            const successMessage = `File ${pendingUpdate.fileName} has been ${actionType} successfully!`;
-
-            await ctx.editMessageText(successMessage);
-
-            global.updateHistory.push({
-              updateId: updateId,
-              fileName: pendingUpdate.fileName,
-              action: 'yes',
-              timestamp: Date.now()
-            });
-
-            global.pendingUpdates.delete(updateId);
-            global.updateQueue.shift();
-            global.isProcessingUpdate = false;
-
-            setTimeout(() => {
-              processUpdateQueue();
-            }, 1000);
-
-          } catch (error) {
-            await ctx.editMessageText(`Update Failed!\n\nError: ${error.message}`);
-            global.updateQueue.shift();
-            global.isProcessingUpdate = false;
-            setTimeout(() => {
-              processUpdateQueue();
-            }, 1000);
-          }
-        } else if (action === 'no') {
-          await ctx.editMessageText(`Update Cancelled\n\nFile: ${pendingUpdate.fileName}\n\nUpdate has been skipped.`);
-          
-          global.updateHistory.push({
-            updateId: updateId,
-            fileName: pendingUpdate.fileName,
-            action: 'no',
-            timestamp: Date.now()
-          });
-
-          global.pendingUpdates.delete(updateId);
-          global.updateQueue.shift();
-          global.isProcessingUpdate = false;
-
-          setTimeout(() => {
-            processUpdateQueue();
-          }, 1000);
-        }
-
-        if (global.updateHistory.length > 50) {
-          global.updateHistory = global.updateHistory.slice(-25);
-        }
-
-      } catch (error) {
-        console.error(chalk.red('Error handling update action:'), error);
-        try {
-          await ctx.answerCbQuery('Error processing update!');
-        } catch (e) {}
-      }
-    });
-
-    console.log(chalk.green('Auto-updater enabled!'));
-  }
+  startUpdateChecker(bot);
 
   bot.use(async (ctx, next) => {
     try {
@@ -545,9 +497,15 @@ function restartServer() {
       const chatId = ctx.callbackQuery.message.chat.id;
       const messageId = ctx.callbackQuery.message.message_id;
       
-      if (!data.startsWith('update_')) {
-        await ctx.answerCbQuery();
+      if (data.startsWith('update_accept_') || data.startsWith('update_reject_')) {
+        const action = data.startsWith('update_accept_') ? 'accept' : 'reject';
+        const updateId = data.replace('update_accept_', '').replace('update_reject_', '');
+        
+        await handleUpdateResponse(bot, ctx, action, updateId);
+        return;
       }
+      
+      await ctx.answerCbQuery();
       
       const fakeMessage = {
         message_id: messageId,
@@ -580,9 +538,7 @@ function restartServer() {
         deleteMessage: ctx.deleteMessage.bind(ctx)
       };
       
-      if (!data.startsWith('update_')) {
-        await require('./handler').handler(bot, fakeCtx);
-      }
+      await require('./handler').handler(bot, fakeCtx);
       
     } catch (error) {
       console.error('Error handling callback query:', error);
