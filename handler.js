@@ -586,8 +586,12 @@ async function processCommand(bot, ctx, m, text, chatId, userId, isGroup, user, 
         
         user.exp += plugin.exp || 0;
 
+        if (!global.db.data.stats) {
+          global.db.data.stats = {};
+        }
+        
         let stats = global.db.data.stats;
-        if (plugin.command) {
+        if (plugin && plugin.command) {
           let cmdName = typeof plugin.command === 'string' ? plugin.command : 'unknown';
           if (!stats[cmdName]) {
             stats[cmdName] = {
@@ -606,9 +610,9 @@ async function processCommand(bot, ctx, m, text, chatId, userId, isGroup, user, 
         console.error(e);
         
         if (typeof e === 'string') {
-          ctx.reply(e, { parse_mode: 'Markdown' }).catch(err => console.error('Reply error:', err));
+          ctx.reply(e).catch(err => console.error('Reply error:', err));
         } else if (e instanceof Error) {
-          ctx.reply(e.message || 'Terjadi kesalahan saat menjalankan perintah', { parse_mode: 'Markdown' }).catch(err => console.error('Reply error:', err));
+          ctx.reply(e.message || 'Terjadi kesalahan saat menjalankan perintah').catch(err => console.error('Reply error:', err));
           
           let errorText = util.format(e);
           let errorStack = e.stack || errorText;
@@ -623,9 +627,7 @@ async function processCommand(bot, ctx, m, text, chatId, userId, isGroup, user, 
           errorReport += `Stack Trace:\n${errorStack.substring(0, 500)}`;
 
           for (let ownerId of global.owner) {
-            ctx.telegram.sendMessage(ownerId, errorReport, {
-              parse_mode: 'Markdown'
-            }).catch(sendErr => console.error('Failed to send error report to owner:', sendErr));
+            ctx.telegram.sendMessage(ownerId, errorReport).catch(sendErr => console.error('Failed to send error report to owner:', sendErr));
           }
         }
       });
@@ -638,6 +640,68 @@ async function processCommand(bot, ctx, m, text, chatId, userId, isGroup, user, 
 module.exports = {
   async handler(bot, ctx) {
     if (ctx.callbackQuery) {
+      const callbackData = ctx.callbackQuery.data;
+      
+      if (callbackData && callbackData.startsWith('cmd_')) {
+        const command = callbackData.replace('cmd_', '');
+        
+        const fakeMessage = {
+          message_id: ctx.callbackQuery.message.message_id,
+          from: ctx.callbackQuery.from,
+          chat: ctx.callbackQuery.message.chat,
+          text: command,
+          date: Math.floor(Date.now() / 1000)
+        };
+        
+        const fakeCtx = {
+          message: fakeMessage,
+          update: {
+            message: fakeMessage
+          },
+          botInfo: ctx.botInfo,
+          telegram: ctx.telegram,
+          chat: ctx.callbackQuery.message.chat,
+          from: ctx.callbackQuery.from,
+          reply: async (text, options = {}) => {
+            return await ctx.telegram.sendMessage(ctx.callbackQuery.message.chat.id, text, {
+              parse_mode: 'Markdown',
+              ...options
+            });
+          },
+          replyWithPhoto: ctx.replyWithPhoto.bind(ctx),
+          replyWithVideo: ctx.replyWithVideo.bind(ctx),
+          replyWithAudio: ctx.replyWithAudio.bind(ctx),
+          replyWithDocument: ctx.replyWithDocument.bind(ctx),
+          replyWithSticker: ctx.replyWithSticker.bind(ctx),
+          deleteMessage: ctx.deleteMessage.bind(ctx)
+        };
+        
+        await ctx.answerCbQuery().catch(() => {});
+        
+        return await require('./handler').handler(bot, fakeCtx);
+      }
+      
+      let handled = false;
+      for (let name in global.plugins) {
+        let plugin = global.plugins[name];
+        if (!plugin) continue;
+        if (plugin.disabled) continue;
+        
+        if (typeof plugin.handleCallback === 'function') {
+          try {
+            const result = await plugin.handleCallback(bot, ctx.callbackQuery);
+            if (result === true) {
+              handled = true;
+              break;
+            }
+          } catch (e) {
+            console.error(`Error in ${name}.handleCallback:`, e);
+          }
+        }
+      }
+      
+      if (handled) return;
+      
       return await handleCallback(bot, ctx);
     }
     
@@ -719,7 +783,7 @@ global.dfail = (type, m, ctx, extra) => {
   }[type];
 
   if (messages) {
-    ctx.reply(messages, { parse_mode: 'Markdown' });
+    ctx.reply(messages);
   }
 };
 
