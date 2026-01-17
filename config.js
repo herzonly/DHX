@@ -9,7 +9,7 @@ global.owner = ["6769278419"]
 global.mods = []
 global.prems = []
 global.prems = [];
-global.momgodb = "" //(optional) ini kalo mau pake db dari mongoDB, dapet ny lewat https://www.mongodb.com/cloud/atlas/register
+global.mongodb = "" //(optional) ini kalo mau pake db dari mongoDB, dapet ny lewat https://www.mongodb.com/cloud/atlas/register
 global.autoupdate = true
 
 global.prefix = /^[.,!/#]/
