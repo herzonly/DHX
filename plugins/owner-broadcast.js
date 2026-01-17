@@ -1,6 +1,5 @@
 let handler = async (m, { conn, text, usedPrefix, command }) => {
   if (!text) return m.reply(`Masukkan pesan broadcast!\n\nContoh:\n${usedPrefix + command} Halo semua, ini adalah pengumuman penting!`);
-  //test push
   await m.reply('Broadcasting to all users...');
   
   try {
