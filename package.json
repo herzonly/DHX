@@ -19,6 +19,7 @@
     "lodash": "^4.17.21",
     "human-readable": "*",
     "node-schedule": "*",
+    "mongoose": "^6.0.14",
     "notmebotz-tools": "*",
     "node-fetch": "*",
     "yt-search": "*",
