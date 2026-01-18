@@ -1,5 +1,9 @@
 # DHX - Telegram Bot Base
 
+<p align="center">
+  <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTbE9au0ScUmGmZikvRWl5uGB3xiRJoZ_iVs3Qk_lYgF0dJo5M-c7O15x8r&s=10" alt="Preview Image">
+</p>
+
 A simple and lightweight Telegram bot base built with Telegraf library. Easy to use with minimal resource consumption.
 
 ## ✨ Features
