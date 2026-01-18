@@ -11,7 +11,7 @@ A simple and lightweight Telegram bot base built with Telegraf library. Easy to 
 - 📦 Built with Telegraf library
 
 ## Bot Function Docs
-### under construction ☹️ please wait
+### under development ☹️ please wait
 
 ## 📋 Prerequisites
 
