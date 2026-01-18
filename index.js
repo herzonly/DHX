@@ -17,8 +17,7 @@ try {
   dbLibrary = require("./lib/lowdb");
 }
 const { Low, JSONFile } = dbLibrary;
-
-const MongoDB = require('./lib/mongoDB');
+const SawitDB = require('./lib/sawitDB');
 
 function reloadModule(modulePath) {
   const fullPath = require.resolve(modulePath);
@@ -27,24 +26,25 @@ function reloadModule(modulePath) {
 }
 
 async function initializeDatabase() {
-  const mongodbUrl = global.mongodb || "";
+  const sawitdbUrl = global.sawitdb || "";
+  const sawitdbName = global.sawitname || "botdb";
   
-  if (mongodbUrl && mongodbUrl.trim() !== "") {
-    if (!mongodbUrl.startsWith("mongodb://") && !mongodbUrl.startsWith("mongodb+srv://")) {
-      console.log(chalk.red('This is not a valid mongodb URL, please connect to the real one'));
+  if (sawitdbUrl && sawitdbUrl.trim() !== "") {
+    if (!sawitdbUrl.startsWith("sawitdb://")) {
+      console.log(chalk.red('Invalid SawitDB URL format. Expected: sawitdb://host:port'));
       await new Promise(resolve => setTimeout(resolve, 2000));
       console.log(chalk.yellow('Changing to localdb'));
       return new Low(new JSONFile('database.json'));
     }
     
     try {
-      console.log(chalk.cyan('Attempting to connect to MongoDB...'));
-      const mongoDb = new MongoDB(mongodbUrl);
-      await mongoDb.read();
-      console.log(chalk.green('Successfully connected to MongoDB'));
-      return mongoDb;
+      console.log(chalk.cyan('Attempting to connect to SawitDB...'));
+      const sawitDb = new SawitDB(sawitdbUrl, sawitdbName);
+      await sawitDb.read();
+      console.log(chalk.green('Successfully connected to SawitDB'));
+      return sawitDb;
     } catch (error) {
-      console.log(chalk.red('Failed to connect to MongoDB:', error.message));
+      console.log(chalk.red('Failed to connect to SawitDB:', error.message));
       await new Promise(resolve => setTimeout(resolve, 2000));
       console.log(chalk.yellow('Changing to localdb'));
       return new Low(new JSONFile('database.json'));
