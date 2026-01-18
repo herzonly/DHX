@@ -162,7 +162,7 @@ async function initializeDatabase() {
             const commands = Array.isArray(plugin.command) ? plugin.command : [plugin.command];
             commands.forEach(cmd => {
               const cmdStr = cmd instanceof RegExp ? cmd.toString() : cmd;
-              global.commands[cmdStr] = pluginFile;
+              global.commands[cmdStr] = filePath;
             });
           }
         } catch (error) {
