@@ -69,7 +69,7 @@ let handler = async (m, { bot, args, DHX }) => {
 
     await bot.sendChatAction(m.chat, 'upload_audio')
 
-    let apiUrl = `https://api.dashx.dpdns.org/api/download/youtube?url=${encodeURIComponent(videoUrl)}&key=${DHX}`
+    let apiUrl = `https://api.dashx.dpdns.org/api/download/youtube?url=${encodeURIComponent(videoUrl)}&key=${dhx}`
     let response = await axios.get(apiUrl, {
       timeout: 60000,
       validateStatus: function (status) {
