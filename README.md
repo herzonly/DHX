@@ -4,6 +4,8 @@
   <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTbE9au0ScUmGmZikvRWl5uGB3xiRJoZ_iVs3Qk_lYgF0dJo5M-c7O15x8r&s=10" alt="Preview Image">
 </p>
 
+# Branch ini make sawit DB kalo mau yang oake mongodb ubah aja branch ny ke pro
+
 A simple and lightweight Telegram bot base built with Telegraf library. Easy to use with minimal resource consumption.
 
 ## ✨ Features
