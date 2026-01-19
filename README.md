@@ -1,7 +1,7 @@
-# DHX - Telegram Bot Base
+# DHX - Advanced Telegram Bot
 
 A simple and lightweight Telegram bot base built with Telegraf library. Easy to use with minimal resource consumption.
-
+## [SawitDB Intergration](https://github.com/herzonly/DHX/tree/sawit)
 ## ✨ Features
 
 - 🚀 Simple and clean code structure
