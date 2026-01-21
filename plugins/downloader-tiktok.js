@@ -1,4 +1,4 @@
-const { tiktok } = require('notmebotz-tools')
+const axios = require('axios')
 
 let handler = async(m, { conn, text, usedPrefix, command }) => {
   if(!text) return m.reply(`Please enter tiktok URL to download, Example:\n\n${usedPrefix + command} https://vt.tiktok.com/ZSf5MJCVS/`)
@@ -6,35 +6,39 @@ let handler = async(m, { conn, text, usedPrefix, command }) => {
   await m.reply(wait)
   
   try {
-    let anu = await tiktok(text)
+    const response = await axios.get(`https://api.dashx.dpdns.org/api/download/tiktok?url=${encodeURIComponent(text)}&key=${global.dhx}`)
     
-    if(!anu || anu.status !== 200 || !anu.data) {
+    if(!response || !response.data || !response.data.success || !response.data.data) {
       return m.reply("Failed to fetch TikTok data. Please check the URL and try again.")
     }
     
-    let { title, region, duration, author, video, music } = anu.data
+    const anu = response.data.data
+    const { title, duration, author, music_info, images, hdplay, play, music } = anu
     
-    let capt = `Title: ${title || 'N/A'}
-Region: ${region || 'N/A'}
-Duration: ${duration || 'N/A'}
+    let capt = `*Title:* ${title || 'N/A'}
+*Duration:* ${duration || 'N/A'}s
 
 *Author*
-Username: ${author?.username || 'N/A'}
-Nickname: ${author?.nickname || 'N/A'}
-Avatar: ${author?.avatar ? `[Click Me](${author.avatar})` : 'N/A'}`
+*Username:* ${author?.username || 'N/A'}
+*Nickname:* ${author?.nickname || 'N/A'}
+*Avatar:* ${author?.avatar ? `[Click Me](${author.avatar})` : 'N/A'}`
     
-    if(video?.hd_play_url) {
-      await conn.sendFile(m.chat, video.hd_play_url, 'vid.mp4', capt, m)
-    } else if(video?.play_url) {
-      await conn.sendFile(m.chat, video.play_url, 'vid.mp4', capt, m)
+    if(images && images.length > 0) {
+      for(let img of images) {
+        await conn.sendFile(m.chat, img, 'img.jpg', capt, m)
+      }
+    } else if(hdplay) {
+      await conn.sendFile(m.chat, hdplay, 'vid.mp4', capt, m)
+    } else if(play) {
+      await conn.sendFile(m.chat, play, 'vid.mp4', capt, m)
     } else {
-      return m.reply("Video URL not found.")
+      return m.reply("Video or Image URL not found.")
     }
     
-    if(music?.play_url) {
-      await conn.sendFile(m.chat, music.play_url, 'aud.mp3', null, m, {
-          performer: anu.data.music.author
-          })
+    if(music) {
+      await conn.sendFile(m.chat, music, 'aud.mp3', '', m, {
+        performer: music_info?.author || 'Unknown'
+      })
     }
     
   } catch (error) {
