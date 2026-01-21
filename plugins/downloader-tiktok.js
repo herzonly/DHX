@@ -15,13 +15,13 @@ let handler = async(m, { conn, text, usedPrefix, command }) => {
     const anu = response.data.data
     const { title, duration, author, music_info, images, hdplay, play, music } = anu
     
-    let capt = `*Title:* ${title || 'N/A'}
-*Duration:* ${duration || 'N/A'}s
+    let capt = `**Title:** ${title || 'N/A'}
+**Duration:** ${duration || 'N/A'}s
 
-*Author*
-*Username:* ${author?.username || 'N/A'}
-*Nickname:* ${author?.nickname || 'N/A'}
-*Avatar:* ${author?.avatar ? `[Click Me](${author.avatar})` : 'N/A'}`
+**Author**
+**Username:** ${author?.username || 'N/A'}
+**Nickname:** ${author?.nickname || 'N/A'}
+**Avatar:** ${author?.avatar ? `[Click Me](${author.avatar})` : 'N/A'}`
     
     if(images && images.length > 0) {
       for(let img of images) {
