@@ -1,49 +1,84 @@
 const axios = require('axios')
 
 let handler = async(m, { conn, text, usedPrefix, command }) => {
-  if(!text) return m.reply(`Please enter tiktok URL to download, Example:\n\n${usedPrefix + command} https://vt.tiktok.com/ZSf5MJCVS/`)
+  if(!text) return m.reply(`*╭─「 TikTok Downloader 」*
+│ • Masukkan URL TikTok
+│ • Contoh: ${usedPrefix + command} <url>
+*╰────────────⬣*
+
+*Example:*
+${usedPrefix + command} https://vt.tiktok.com/ZSf5MJCVS/`)
   
-  await m.reply(wait)
+  await m.reply('*⏳ Sedang mengunduh video...*')
   
   try {
     const response = await axios.get(`https://api.dashx.dpdns.org/api/download/tiktok?url=${encodeURIComponent(text)}&key=${global.dhx}`)
     
     if(!response || !response.data || !response.data.success || !response.data.data) {
-      return m.reply("Failed to fetch TikTok data. Please check the URL and try again.")
+      return m.reply('*❌ Gagal mengambil data TikTok*\n\nPastikan URL yang kamu masukkan benar!')
     }
     
     const anu = response.data.data
     const { title, duration, author, music_info, images, hdplay, play, music } = anu
     
-    let capt = `**Title:** ${title || 'N/A'}
-**Duration:** ${duration || 'N/A'}s
-
-**Author**
-**Username:** ${author?.username || 'N/A'}
-**Nickname:** ${author?.nickname || 'N/A'}
-**Avatar:** ${author?.avatar ? `[Click Me](${author.avatar})` : 'N/A'}`
+    const escapeMarkdown = (str) => {
+      if(!str) return 'N/A'
+      return String(str)
+        .replace(/_/g, '\\_')
+        .replace(/\*/g, '\\*')
+        .replace(/\[/g, '\\[')
+        .replace(/`/g, '\\`')
+    }
+    
+    let capt = `*╭─「 📹 TIKTOK DOWNLOADER 」*\n`
+    capt += `│\n`
+    capt += `│ *📝 Title:*\n│ ${escapeMarkdown(title)}\n`
+    capt += `│\n`
+    capt += `│ *⏱️ Duration:* ${duration || 0}s\n`
+    capt += `│\n`
+    capt += `│ *👤 Author Info:*\n`
+    capt += `│ • *Name:* ${escapeMarkdown(author?.nickname)}\n`
+    capt += `│ • *Username:* @${escapeMarkdown(author?.username)}\n`
+    
+    if(music_info?.title) {
+      capt += `│\n`
+      capt += `│ *🎵 Music:*\n`
+      capt += `│ • *Title:* ${escapeMarkdown(music_info.title)}\n`
+      capt += `│ • *Author:* ${escapeMarkdown(music_info.author)}\n`
+    }
+    
+    capt += `*╰────────────⬣*`
+    
+    const options = { parse_mode: 'Markdown' }
     
     if(images && images.length > 0) {
       for(let img of images) {
-        await conn.sendFile(m.chat, img, 'img.jpg', capt, m)
+        await conn.sendFile(m.chat, img, 'tiktok.jpg', capt, m, false, options)
       }
     } else if(hdplay) {
-      await conn.sendFile(m.chat, hdplay, 'vid.mp4', capt, m)
+      await conn.sendFile(m.chat, hdplay, 'tiktok.mp4', capt, m, false, options)
     } else if(play) {
-      await conn.sendFile(m.chat, play, 'vid.mp4', capt, m)
+      await conn.sendFile(m.chat, play, 'tiktok.mp4', capt, m, false, options)
     } else {
-      return m.reply("Video or Image URL not found.")
+      return m.reply('*❌ Video atau gambar tidak ditemukan*')
     }
     
     if(music) {
-      await conn.sendFile(m.chat, music, 'aud.mp3', '', m, {
-        performer: music_info?.author || 'Unknown'
-      })
+      try {
+        await conn.sendFile(m.chat, music, 'audio.mp3', '', m, false, {
+          performer: music_info?.author || 'Unknown Artist',
+          title: music_info?.title || 'TikTok Audio'
+        })
+      } catch (error) {
+        return m.reply('*🔇 No available audio on this video*')
+      }
+    } else {
+      return m.reply('*🔇 No available audio on this video*')
     }
     
   } catch (error) {
     console.error(error)
-    return m.reply("Sorry error downloading video, try another video")
+    return m.reply('*❌ Terjadi kesalahan saat mengunduh video*\n\nCoba video lain atau coba lagi nanti.')
   }
 }
 
