@@ -65,11 +65,15 @@ ${usedPrefix + command} https://vt.tiktok.com/ZSf5MJCVS/`)
     
     if(music) {
       try {
-        await conn.sendFile(m.chat, music, 'audio.mp3', '', m, false, {
-          performer: music_info?.author || 'Unknown Artist',
-          title: music_info?.title || 'TikTok Audio'
-        })
+        const audioOptions = {
+          performer: music_info?.author || author?.nickname || 'TikTok Audio',
+          title: music_info?.title || title || 'TikTok Sound',
+          parse_mode: null
+        }
+        
+        await conn.sendFile(m.chat, music, 'tiktok_audio.mp3', '', m, false, audioOptions)
       } catch (error) {
+        console.error('Audio error:', error)
         return m.reply('*🔇 No available audio on this video*')
       }
     } else {
