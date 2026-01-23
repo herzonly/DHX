@@ -16,5 +16,6 @@ handler.help = ["wormgpt", "wgpt", "hackai"]
 handler.command = ["wormgpt", "wgpt", "hackai"]
 handler.limit = 5
 handler.register = true
+handler.tags = ["ai"]
 
 module.exports = handler
