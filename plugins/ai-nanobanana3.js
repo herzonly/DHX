@@ -8,11 +8,11 @@ let handler = async(m, { conn, usedPrefix, command, text }) => {
   let anu = await axios.get(`https://api.dashx.biz.id/api/AI/text2imgnanobanana3?prompt=${encodeURIComponent(text)}&key=${dhx}`);
   await conn.sendFile(m.chat, anu.data.data.result_url, 'image.jpg', text, m.id);
   } catch(e) {
-  throw new Error(e);
+  throw ("sorry Rest APIs service is not availabe right now :(")
   }
 };
 
-handler.help = handler.command = ['text2img', 'nanobanana3']
+handler.help = handler.command = ['text2img2', 'nanobanana3']
 handler.tags = ['ai']
 handler.limit = true
 handler.register = true
