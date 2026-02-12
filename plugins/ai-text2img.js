@@ -10,8 +10,8 @@ let handler = async(m, { conn, text, usedPrefix, command }) => {
     let id = job.data.data.job_id;
     let img = null;
     
-    for(let i = 0; i < 300; i++) {
-      await new Promise(r => setTimeout(r, 2000));
+    for(let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 1000));
       let res = await axios.get(`https://api.dashx.dpdns.org/api/job/imagegen?id=${id}&key=${dhx}`);
       if(res.data.data.status === 'completed') {
         img = res.data.data.result.image_url;
