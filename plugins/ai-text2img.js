@@ -6,25 +6,38 @@ let handler = async(m, { conn, text, usedPrefix, command }) => {
   await m.reply(wait);
   
   try {
-    let job = await axios.get(`https://api.dashx.dpdns.org/api/AI/imagegen?prompt=${encodeURIComponent(text + ' high quality and HDR image')}&key=${dhx}`);
+    const prompt = encodeURIComponent(text + ' high quality and HDR image');
+    let job = await axios.get(`https://api.dashx.dpdns.org/api/AI/imagegen?prompt=${prompt}&key=${dhx}`);
+    
+    if(!job.data.success) throw new Error('Failed to create job');
+    
     let id = job.data.data.job_id;
     let img = null;
+    const maxRetries = 90;
+    const checkInterval = 3000;
     
-    for(let i = 0; i < 30; i++) {
-      await new Promise(r => setTimeout(r, 1000));
+    for(let i = 0; i < maxRetries; i++) {
+      await new Promise(r => setTimeout(r, checkInterval));
+      
       let res = await axios.get(`https://api.dashx.dpdns.org/api/job/imagegen?id=${id}&key=${dhx}`);
-      if(res.data.data.status === 'completed') {
+      
+      if(res.data.success && res.data.data.status === 'completed') {
         img = res.data.data.result.image_url;
         break;
       }
+      
+      if(res.data.data.status === 'failed') {
+        throw new Error('Image generation failed');
+      }
     }
     
-    if(!img) throw new Error('Timeout');
+    if(!img) throw new Error('Timeout: Image generation took too long');
+    
     await conn.sendFile(m.chat, img, 'image.jpg', text, m);
     
   } catch(e) {
+    console.error('Text2Img Error:', e.message);
     await m.reply('Sorry our API(s) service is unavailable right now!');
-    throw new Error(e);
   }
 };
 
