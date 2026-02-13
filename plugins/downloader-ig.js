@@ -6,17 +6,26 @@ let handler = async(m, { conn, text, usedPrefix, command }) => {
   await m.reply(wait)
   
   try {
-    const response = await axios.get(`https://api.dashx.dpdns.org/api/download/instagram?url=${encodeURIComponent(text)}&key=${global.dhx}`)
+    const { data } = await axios.get(`https://api.dashx.dpdns.org/api/download/instagram?url=${encodeURIComponent(text)}&key=${global.dhx}`, {
+      timeout: 60000
+    })
     
-    if(!response.data || !response.data.success || !response.data.data || !response.data.data.video) {
-      return m.reply('Video not found, try another url')
+    if(!data?.success) throw new Error(data?.error || 'Failed to fetch')
+    
+    const { result } = data
+    
+    if(result.type === 'video') {
+      await conn.sendFile(m.chat, result.url, 'instagram.mp4', '✅ *Instagram Downloader*', m)
+    } else if(result.type === 'slide') {
+      for(let i = 0; i < result.images.length; i++) {
+        await conn.sendFile(m.chat, result.images[i], `instagram_${i+1}.jpg`, `✅ *Image ${i+1}/${result.images.length}*`, m)
+        if(i < result.images.length - 1) await new Promise(r => setTimeout(r, 1000))
+      }
     }
     
-    await conn.sendFile(m.chat, response.data.data.video, 'instagram.mp4', `✅ *Instagram Downloaded*`, m)
-    
   } catch(e) {
-    console.log(e)
-    m.reply('Video not found, try another url')
+    console.error('[IGDL]', e.message)
+    m.reply('❌ Download failed, coba lagi nanti')
   }
 }
 
