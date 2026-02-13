@@ -15,10 +15,12 @@ let handler = async(m, { conn, text, usedPrefix, command }) => {
     const { result } = data
     
     if(result.type === 'video') {
-      await conn.sendFile(m.chat, result.url, 'instagram.mp4', '✅ *Instagram Downloader*', m)
+      const buffer = await axios.get(result.url, { responseType: 'arraybuffer' }).then(res => res.data)
+      await conn.sendFile(m.chat, buffer, 'instagram.mp4', '✅ *Instagram Downloaded*', m)
     } else if(result.type === 'slide') {
       for(let i = 0; i < result.images.length; i++) {
-        await conn.sendFile(m.chat, result.images[i], `instagram_${i+1}.jpg`, `✅ *Image ${i+1}/${result.images.length}*`, m)
+        const buffer = await axios.get(result.images[i], { responseType: 'arraybuffer' }).then(res => res.data)
+        await conn.sendFile(m.chat, buffer, `instagram_${i+1}.jpg`, `✅ *Image ${i+1}/${result.images.length}*`, m)
         if(i < result.images.length - 1) await new Promise(r => setTimeout(r, 1000))
       }
     }
