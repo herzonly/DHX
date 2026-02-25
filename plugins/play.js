@@ -83,7 +83,7 @@ let handler = async (m, { bot, args, DHX }) => {
 
     let data = response.data.data
     
-    let audioData = data.download.audio.find(item => item.format === 'mp3')
+    let audioData = data.download.audio[0].url
     
     if (!audioData) {
       return m.reply('❌ Audio tidak tersedia')
