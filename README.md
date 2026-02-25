@@ -5,7 +5,7 @@
 </p>
 
 # Branch ini make sawit DB kalo mau yang oake mongodb ubah aja branch ny ke pro
-
+# btw branch ini juga g bakal di lanjutin, karna iseng doang ini :v jadi kalo mau yang up-to-date ke branch pro aja
 A simple and lightweight Telegram bot base built with Telegraf library. Easy to use with minimal resource consumption.
 
 ## ✨ Features
