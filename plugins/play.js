@@ -60,7 +60,7 @@ let handler = async (m, { bot, args, DHX }) => {
     if (!apiRes?.success) return m.reply('❌ Gagal mengunduh audio')
 
     const { metadata, download } = apiRes.data
-    const audioUrl = download.audio?.[0]?.url
+    const audioUrl = download.url
 
     if (!audioUrl) return m.reply('❌ Audio tidak tersedia')
 
