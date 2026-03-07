@@ -186,7 +186,7 @@ Contributions are welcome! Feel free to:
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the CCZ LICENSE 
 
 ## 👤 Developer
 
