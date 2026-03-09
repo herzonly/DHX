@@ -1,7 +1,8 @@
 {
   "name": "nodejs",
   "version": "1.0.0",
-  "description": "",
+  "note": "This script is free, make sure doesnt buy from who sell it",
+  "description": "Advanced telegram bot, intergrated with DashX API and easy to use",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
